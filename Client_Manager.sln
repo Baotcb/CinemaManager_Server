@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35825.156 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cinema_Manager_Serve", "Cinema_Manager_Serve\Cinema_Manager_Serve.csproj", "{02F139DE-49E2-4A6F-A471-5704F26FFFAC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Repo", "Repo\Repo.csproj", "{82D1CFE8-A5FA-47B0-8DE4-94EB2B72F788}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{02F139DE-49E2-4A6F-A471-5704F26FFFAC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02F139DE-49E2-4A6F-A471-5704F26FFFAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02F139DE-49E2-4A6F-A471-5704F26FFFAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02F139DE-49E2-4A6F-A471-5704F26FFFAC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{82D1CFE8-A5FA-47B0-8DE4-94EB2B72F788}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{82D1CFE8-A5FA-47B0-8DE4-94EB2B72F788}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{82D1CFE8-A5FA-47B0-8DE4-94EB2B72F788}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{82D1CFE8-A5FA-47B0-8DE4-94EB2B72F788}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DC86BF62-4C39-4FD5-972E-8AF8B9863613}
+	EndGlobalSection
+EndGlobal

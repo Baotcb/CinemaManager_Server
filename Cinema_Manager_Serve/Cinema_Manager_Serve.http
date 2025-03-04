@@ -1,0 +1,6 @@
+@Cinema_Manager_Serve_HostAddress = http://localhost:5190
+
+GET {{Cinema_Manager_Serve_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
