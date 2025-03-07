@@ -217,28 +217,81 @@ namespace Repo.Service
         /// </summary>
         /// <param name="bookingId">Booking ID</param>
         /// <returns>True if cancellation was successful</returns>
-        public bool CancelBooking(int bookingId)
+        public CancelBookingResult CancelBooking(int bookingId, int userId)
         {
             try
             {
-                var booking = cinemaManagerContext.Bookings.Find(bookingId);
-                if (booking == null)
-                    return false;
+                CancelBookingProcResult result = null;
 
-                // Can only cancel bookings that aren't already cancelled
-                if (booking.BookingStatus == "Cancelled")
-                    return false;
+                // Use connection directly to call the stored procedure
+                using (var connection = new SqlConnection(cinemaManagerContext.Database.GetConnectionString()))
+                {
+                    connection.Open();
 
-                booking.BookingStatus = "Cancelled";
-                booking.PaymentStatus = "Refunded";
-                booking.UpdatedAt = DateTime.Now;
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "CancelBooking";
+                        command.CommandType = CommandType.StoredProcedure;
 
-                cinemaManagerContext.SaveChanges();
-                return true;
+                        // Add parameters
+                        command.Parameters.Add(new SqlParameter("@booking_id", SqlDbType.Int) { Value = bookingId });
+                        command.Parameters.Add(new SqlParameter("@user_id", SqlDbType.Int) { Value = userId });
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                // Check if there's an error message
+                                if (reader.FieldCount > 1 && reader.GetName(1) == "error_message" && !reader.IsDBNull(1))
+                                {
+                                    string errorMessage = reader.GetString(1);
+                                    return new CancelBookingResult
+                                    {
+                                        Success = false,
+                                        ErrorMessage = errorMessage
+                                    };
+                                }
+
+                                // Read successful result
+                                result = new CancelBookingProcResult
+                                {
+                                    BookingId = reader.GetInt32(reader.GetOrdinal("booking_id")),
+                                    BookingStatus = reader.GetString(reader.GetOrdinal("booking_status")),
+                                    PaymentStatus = reader.GetString(reader.GetOrdinal("payment_status")),
+                                    Message = reader.GetString(reader.GetOrdinal("message"))
+                                };
+                            }
+                        }
+                    }
+                }
+
+                if (result?.BookingId > 0)
+                {
+                    return new CancelBookingResult
+                    {
+                        Success = true,
+                        BookingId = result.BookingId,
+                        BookingStatus = result.BookingStatus,
+                        PaymentStatus = result.PaymentStatus,
+                        Message = result.Message
+                    };
+                }
+                else
+                {
+                    return new CancelBookingResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Failed to cancel booking"
+                    };
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return new CancelBookingResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
             }
         }
     }
@@ -321,5 +374,22 @@ namespace Repo.Service
         public string SeatRow { get; set; }
         public int SeatNumber { get; set; }
         public string SeatType { get; set; }
+    }
+    public class CancelBookingProcResult
+    {
+        public int BookingId { get; set; }
+        public string BookingStatus { get; set; }
+        public string PaymentStatus { get; set; }
+        public string Message { get; set; }
+    }
+
+    public class CancelBookingResult
+    {
+        public bool Success { get; set; }
+        public int BookingId { get; set; }
+        public string BookingStatus { get; set; }
+        public string PaymentStatus { get; set; }
+        public string Message { get; set; }
+        public string ErrorMessage { get; set; }
     }
 }

@@ -109,25 +109,25 @@ namespace Cinema_Manager_Serve.Controllers
         /// </summary>
         /// <param name="id">Booking ID</param>
         /// <returns>Result of cancellation</returns>
-        [HttpPost("Cancel/{id}")]
-        public IActionResult CancelBooking(int id)
+        [HttpPost("Cancel/{userid}/{bookingid}")]
+        public IActionResult CancelBooking(int userid,int bookingid)
         {
             try
             {
-                var success = _bookingService.CancelBooking(id);
+                var success = _bookingService.CancelBooking(bookingid, userid);
 
-                if (success)
+                if (success.Success)
                 {
-                    return Ok(new { message = "Booking cancelled successfully" });
+                    return Ok(new { message = success.Message });
                 }
                 else
                 {
-                    return BadRequest(new { message = "Unable to cancel booking" });
+                    return BadRequest(new { message = success.Message });
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error cancelling booking {BookingId}", id);
+                _logger.LogError(ex, "Error cancelling booking {BookingId}", bookingid);
                 return StatusCode(500, new { message = "An error occurred while cancelling the booking" });
             }
         }
