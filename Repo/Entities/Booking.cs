@@ -13,23 +13,27 @@ public partial class Booking
 
     public decimal TotalAmount { get; set; }
 
+    public decimal? DiscountAmount { get; set; }
+
+    public string? DiscountCode { get; set; }
+
+    public decimal? AdditionalPurchases { get; set; }
+
     public string? PaymentMethod { get; set; }
+
+    public string? TransactionId { get; set; }
 
     public string PaymentStatus { get; set; } = null!;
 
     public string BookingStatus { get; set; } = null!;
+
+    public DateTime? PaymentDate { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
 
     public virtual ICollection<BookingDetail> BookingDetails { get; set; } = new List<BookingDetail>();
-
-    public virtual ICollection<BookingProduct> BookingProducts { get; set; } = new List<BookingProduct>();
-
-    public virtual ICollection<BookingPromotion> BookingPromotions { get; set; } = new List<BookingPromotion>();
-
-    public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
 
     public virtual User User { get; set; } = null!;
 }

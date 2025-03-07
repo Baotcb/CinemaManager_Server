@@ -15,7 +15,13 @@ public partial class Showtime
 
     public DateTime EndTime { get; set; }
 
-    public decimal Price { get; set; }
+    public decimal BasePrice { get; set; }
+
+    public decimal? StudentPrice { get; set; }
+
+    public decimal? ChildPrice { get; set; }
+
+    public decimal? SeniorPrice { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 
@@ -26,6 +32,4 @@ public partial class Showtime
     public virtual Movie Movie { get; set; } = null!;
 
     public virtual Room Room { get; set; } = null!;
-
-    public virtual ICollection<ShowtimePriceType> ShowtimePriceTypes { get; set; } = new List<ShowtimePriceType>();
 }

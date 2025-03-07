@@ -57,10 +57,48 @@ namespace Repo.Service
                 .Where(x => x.ReleaseDate > today)
                 .ToList();
         }
-        public Movie GetMovieById(int id)
+        public MovieShowing GetMovieById(int id)
         {
-            return _context.Movies.FirstOrDefault(x => x.MovieId == id);
+           
+            var movie = _context.Movies
+                .Include(x => x.Showtimes)
+                    .ThenInclude(s => s.Room)
+                        .ThenInclude(r => r.Cinema)
+                .FirstOrDefault(x => x.MovieId == id);
+
+            if (movie == null)
+            {
+                return null;
+            }
+
+           
+            var showtimes = movie.Showtimes
+                .OrderBy(s => s.StartTime)
+                .Select(s => $"{s.Room.Cinema.Name} - {s.StartTime}")
+                .ToList();
+
+            return new MovieShowing
+            {
+                MovieId = movie.MovieId,
+                Title = movie.Title,
+                Showtimes = showtimes,
+                Description = movie.Description,
+                Duration = movie.Duration,
+                ReleaseDate = movie.ReleaseDate,
+                EndDate = movie.EndDate,
+                Genre = movie.Genre,
+                Director = movie.Director,
+                Cast = movie.Cast,
+                PosterUrl = movie.PosterUrl,
+                TrailerUrl = movie.TrailerUrl,
+                Language = movie.Language,
+                Subtitle = movie.Subtitle,
+                Rating = movie.Rating,
+                AgeRestriction = movie.AgeRestriction
+            };
         }
+
+
         public bool AddMovie(Movie movie)
         {
             var check = _context.Movies.FirstOrDefault(x => x.Title == movie.Title);

@@ -50,5 +50,70 @@ namespace Cinema_Manager_Serve.Controllers
             }
             return Ok();
         }
+        [HttpGet("GetUserById/{id}")]
+        public IActionResult GetUserById(int id)
+        {
+            var user = _userService.GetUserById(id);
+            return Ok(user);
+        }
+        [HttpPut("UpdateUser")]
+        public IActionResult UpdateUser( [FromBody] User updatedUser)
+        {
+            try
+            {
+                var existingUser = _userService.GetUserById(updatedUser.UserId);
+                if (existingUser == null)
+                {
+                    return NotFound(new { message = "User not found" });
+                }
+
+               
+                existingUser.Username = updatedUser.Username;
+                existingUser.FullName = updatedUser.FullName;
+                existingUser.PhoneNumber = updatedUser.PhoneNumber;
+                existingUser.DateOfBirth = updatedUser.DateOfBirth;
+                existingUser.Address = updatedUser.Address;
+
+             
+
+                var success = _userService.UpdateUser(existingUser);
+                if (!success)
+                {
+                    return BadRequest(new { message = "Failed to update user" });
+                }
+
+                var updatedUserData = _userService.GetUserById(updatedUser.UserId);
+                return Ok(updatedUserData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating user {UserId}", updatedUser.UserId);
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+        [HttpPut("ChangePassword")]
+        public IActionResult ChangePass([FromBody] UserChangePass user)
+        {
+            var existingUser = _userService.GetUserById(user.userId);
+            if (existingUser == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+            if (existingUser.Password != user.oldPassword)
+            {
+                return BadRequest(new { message = "Old password is incorrect" });
+            }
+            existingUser.Password = user.newPassword;
+            var success = _userService.UpdateUser(existingUser);
+            if (!success)
+            {
+                return BadRequest(new { message = "Failed to change password" });
+            }
+            return Ok();
+        }
+
+
+
+
     }
 }

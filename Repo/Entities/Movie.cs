@@ -39,7 +39,5 @@ public partial class Movie
 
     public DateTime? UpdatedAt { get; set; }
 
-    public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
-
     public virtual ICollection<Showtime> Showtimes { get; set; } = new List<Showtime>();
 }

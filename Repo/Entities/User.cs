@@ -28,6 +28,4 @@ public partial class User
     public DateTime? UpdatedAt { get; set; }
 
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
-
-    public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
 }

@@ -20,7 +20,7 @@ CREATE TABLE Users (
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE()
 );
-select * from Users
+
 go
 -- Bảng Movies (Phim)
 CREATE TABLE Movies (
@@ -513,7 +513,7 @@ VALUES
 ('Late Night', 'Special rate for shows after 10PM', 0.9),
 ('Weekend Premium', 'Premium rate for weekend shows', 1.2);
 GO
-
+select * from Showtimes
 -- Insert Showtimes for currently showing movies
 INSERT INTO Showtimes (movie_id, room_id, start_time, end_time, price)
 VALUES
@@ -767,3 +767,67 @@ UPDATE Movies
 SET rating = (SELECT AVG(CAST(rating AS DECIMAL(3,1))) FROM Reviews WHERE Reviews.movie_id = Movies.movie_id)
 WHERE movie_id IN (SELECT DISTINCT movie_id FROM Reviews);
 GO
+
+
+
+SELECT 
+    m.movie_id,
+    m.title AS movie_title,
+    c.cinema_id,
+    c.name AS cinema_name,
+    c.address AS cinema_address,
+    STRING_AGG(CONVERT(VARCHAR, s.start_time, 108), ', ') AS showing_times,
+    STRING_AGG(r.room_name + ' (' + r.room_type + ')', ', ') AS rooms
+FROM Movies m
+INNER JOIN Showtimes s ON m.movie_id = s.movie_id
+INNER JOIN Rooms r ON s.room_id = r.room_id
+INNER JOIN Cinemas c ON r.cinema_id = c.cinema_id
+GROUP BY m.movie_id, m.title, c.cinema_id, c.name, c.address
+ORDER BY c.name, m.title;
+
+
+
+DECLARE @movie_id INT = 2;  -- ID của bộ phim
+DECLARE @start_time DATETIME = '2025-03-01 10:15:00';
+
+-- Truy vấn lấy thông tin phòng và ghế trống cho một bộ phim và thời gian cụ thể
+WITH BookedSeats AS (
+    -- Lấy các ghế đã được đặt cho suất chiếu cụ thể
+    SELECT DISTINCT bd.seat_id
+    FROM Showtimes st
+    JOIN Booking_Details bd ON st.showtime_id = bd.showtime_id
+    WHERE st.movie_id = @movie_id  -- Thay @movie_id bằng ID phim bạn muốn
+    AND st.start_time = @start_time  -- Thay @start_time bằng thời gian bắt đầu phim
+), 
+RoomDetails AS (
+    -- Lấy thông tin chi tiết về phòng chiếu
+    SELECT 
+        r.room_id,
+        r.room_name,
+        r.cinema_id,
+        c.name AS cinema_name,
+        r.room_type,
+        r.capacity
+    FROM Showtimes st
+    JOIN Rooms r ON st.room_id = r.room_id
+    JOIN Cinemas c ON r.cinema_id = c.cinema_id
+    WHERE st.movie_id = @movie_id
+    AND st.start_time = @start_time
+)
+
+-- Lấy danh sách ghế trống
+SELECT 
+    rd.room_id,
+    rd.room_name,
+    rd.cinema_name,
+    rd.room_type,
+    s.seat_id,
+    s.seat_row,
+    s.seat_number,
+    s.seat_type
+FROM RoomDetails rd
+JOIN Seats s ON s.room_id = rd.room_id
+LEFT JOIN BookedSeats bs ON s.seat_id = bs.seat_id
+WHERE bs.seat_id IS NULL
+ORDER BY s.seat_row, s.seat_number;
+

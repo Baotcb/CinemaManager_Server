@@ -35,5 +35,7 @@ namespace Cinema_Manager_Serve.Dto
         public string? AgeRestriction { get; set; }
 
         public List<String>? Showtimes { get; set; }
+
+       
     }
 }

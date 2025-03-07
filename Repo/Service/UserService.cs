@@ -28,5 +28,52 @@ namespace Repo.Service
             _context.SaveChanges();
             return true;
         }
+        public User GetUserById(int id)
+        {
+            return _context.Users.FirstOrDefault(x => x.UserId == id);
+        }
+
+        public bool UpdateUser(User user)
+        {
+            try
+            {
+                var existingUser = _context.Users.Find(user.UserId);
+                if (existingUser == null)
+                    return false;
+
+                
+                existingUser.Username = user.Username;
+                existingUser.FullName = user.FullName;
+                existingUser.PhoneNumber = user.PhoneNumber;
+                existingUser.DateOfBirth = user.DateOfBirth;
+                existingUser.Address = user.Address;
+                existingUser.UpdatedAt = DateTime.UtcNow;
+
+                _context.SaveChanges();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        public bool ChangePass(User user)
+        {
+            try
+            {
+                var existingUser = _context.Users.Find(user.UserId);
+                if (existingUser == null)
+                    return false;
+                existingUser.Password = user.Password;
+                existingUser.UpdatedAt = DateTime.UtcNow;
+                _context.SaveChanges();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
     }
 }

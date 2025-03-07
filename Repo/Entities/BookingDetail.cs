@@ -13,17 +13,15 @@ public partial class BookingDetail
 
     public int SeatId { get; set; }
 
-    public int PriceTypeId { get; set; }
-
     public decimal Price { get; set; }
+
+    public string? TicketType { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
 
     public virtual Booking Booking { get; set; } = null!;
-
-    public virtual PriceType PriceType { get; set; } = null!;
 
     public virtual Seat Seat { get; set; } = null!;
 
