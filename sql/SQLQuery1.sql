@@ -1,11 +1,19 @@
-﻿
-Create database Cinema_Manager;
-
-go
+﻿use master;
+drop database if exists Cinema_Manager ;
+create database Cinema_Manager;
 use Cinema_Manager;
+
+GO
+drop table if exists Users;
+drop table if exists Movies;
+drop table if exists Cinemas;
+drop table if exists Rooms;
+drop table if exists Seats;
+drop table if exists Showtimes;
+drop table if exists Bookings;
+drop table if exists Booking_Details;
+
 go
-
-
 -- Bảng Users (Người dùng)
 CREATE TABLE Users (
     user_id INT PRIMARY KEY IDENTITY(1,1),
@@ -20,7 +28,6 @@ CREATE TABLE Users (
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE()
 );
-
 go
 -- Bảng Movies (Phim)
 CREATE TABLE Movies (
@@ -75,59 +82,45 @@ CREATE TABLE Seats (
     room_id INT NOT NULL,
     seat_row NVARCHAR(5) NOT NULL, -- Hàng (A, B, C,...)
     seat_number INT NOT NULL, -- Số ghế (1, 2, 3,...)
-    seat_type NVARCHAR(20) NOT NULL, -- Loại ghế (thường, VIP, đôi)
+    seat_type NVARCHAR(20) NOT NULL, -- Loại ghế (Standard, VIP, Couple)
+    price_modifier DECIMAL(3,2) DEFAULT 1.00, -- Hệ số giá cho từng loại ghế (VIP = 1.3, Couple = 1.5, Standard = 1.0)
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Seats_Rooms FOREIGN KEY (room_id) REFERENCES Rooms(room_id) ON DELETE CASCADE,
     CONSTRAINT UQ_Seat_Room UNIQUE (room_id, seat_row, seat_number) -- Mỗi ghế trong phòng phải là duy nhất
 );
 go
--- Bảng Showtimes (Lịch chiếu)
+-- Bảng Showtimes (Lịch chiếu) - Với giá đã đơn giản hóa
 CREATE TABLE Showtimes (
     showtime_id INT PRIMARY KEY IDENTITY(1,1),
     movie_id INT NOT NULL,
     room_id INT NOT NULL,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
-    price MONEY NOT NULL, -- Giá vé cơ bản
+    base_price MONEY NOT NULL, -- Giá vé cơ bản
+    student_price MONEY, -- Giá vé học sinh-sinh viên (nếu có)
+    child_price MONEY,   -- Giá vé trẻ em (nếu có)
+    senior_price MONEY,  -- Giá vé người cao tuổi (nếu có)
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Showtimes_Movies FOREIGN KEY (movie_id) REFERENCES Movies(movie_id) ON DELETE CASCADE,
     CONSTRAINT FK_Showtimes_Rooms FOREIGN KEY (room_id) REFERENCES Rooms(room_id) ON DELETE CASCADE
 );
 go
--- Bảng Price_Types (Loại giá vé)
-CREATE TABLE Price_Types (
-    price_type_id INT PRIMARY KEY IDENTITY(1,1),
-    name NVARCHAR(50) NOT NULL, -- Tên loại (thường, học sinh-sinh viên, người cao tuổi, VIP...)
-    description NVARCHAR(MAX),
-    modifier DECIMAL(3,2) NOT NULL, -- Hệ số nhân với giá gốc (0.8 = giảm 20%, 1.2 = tăng 20%)
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE()
-);
-go
--- Bảng Showtime_Price_Types (Giá vé theo loại và suất chiếu)
-CREATE TABLE Showtime_Price_Types (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    showtime_id INT NOT NULL,
-    price_type_id INT NOT NULL,
-    price MONEY NOT NULL, -- Giá vé cụ thể cho loại này
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT FK_ShowtimePriceTypes_Showtimes FOREIGN KEY (showtime_id) REFERENCES Showtimes(showtime_id) ON DELETE CASCADE,
-    CONSTRAINT FK_ShowtimePriceTypes_PriceTypes FOREIGN KEY (price_type_id) REFERENCES Price_Types(price_type_id) ON DELETE CASCADE,
-    CONSTRAINT UQ_Showtime_PriceType UNIQUE (showtime_id, price_type_id)
-);
-go
--- Bảng Bookings (Đặt vé)
+-- Bảng Bookings (Đặt vé) - Kết hợp với thông tin thanh toán
 CREATE TABLE Bookings (
     booking_id INT PRIMARY KEY IDENTITY(1,1),
     user_id INT NOT NULL,
     booking_date DATETIME DEFAULT GETDATE(),
     total_amount MONEY NOT NULL,
+    discount_amount MONEY DEFAULT 0, -- Số tiền giảm giá (nếu có)
+    discount_code NVARCHAR(20),      -- Mã giảm giá (nếu có)
+    additional_purchases MONEY DEFAULT 0, -- Chi phí mua thêm đồ ăn, nước uống
     payment_method NVARCHAR(50),
+    transaction_id NVARCHAR(100),
     payment_status NVARCHAR(20) NOT NULL DEFAULT 'Pending', -- Trạng thái thanh toán (Pending, Completed, Failed, Refunded)
     booking_status NVARCHAR(20) NOT NULL DEFAULT 'Pending', -- Trạng thái đặt vé (Pending, Confirmed, Cancelled)
+    payment_date DATETIME,
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Bookings_Users FOREIGN KEY (user_id) REFERENCES Users(user_id)
@@ -139,695 +132,562 @@ CREATE TABLE Booking_Details (
     booking_id INT NOT NULL,
     showtime_id INT NOT NULL,
     seat_id INT NOT NULL,
-    price_type_id INT NOT NULL,
     price MONEY NOT NULL,
+    ticket_type NVARCHAR(20) DEFAULT 'Standard', -- Loại vé (Standard, Student, Child, Senior)
     created_at DATETIME DEFAULT GETDATE(),
     updated_at DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_BookingDetails_Bookings FOREIGN KEY (booking_id) REFERENCES Bookings(booking_id) ON DELETE CASCADE,
     CONSTRAINT FK_BookingDetails_Showtimes FOREIGN KEY (showtime_id) REFERENCES Showtimes(showtime_id),
     CONSTRAINT FK_BookingDetails_Seats FOREIGN KEY (seat_id) REFERENCES Seats(seat_id),
-    CONSTRAINT FK_BookingDetails_PriceTypes FOREIGN KEY (price_type_id) REFERENCES Price_Types(price_type_id),
     CONSTRAINT UQ_Showtime_Seat UNIQUE (showtime_id, seat_id) -- Mỗi ghế chỉ có thể được đặt một lần cho mỗi suất chiếu
 );
 go
--- Bảng Products (Sản phẩm phụ - bắp, nước,...)
-CREATE TABLE Products (
-    product_id INT PRIMARY KEY IDENTITY(1,1),
-    name NVARCHAR(100) NOT NULL,
-    description NVARCHAR(MAX),
-    price MONEY NOT NULL,
-    category NVARCHAR(50) NOT NULL, -- Loại sản phẩm (đồ ăn, đồ uống...)
-    image_url NVARCHAR(255),
-    is_available BIT DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE()
-);
-go
--- Bảng Booking_Products (Sản phẩm đi kèm với đặt vé)
-CREATE TABLE Booking_Products (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    booking_id INT NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    price MONEY NOT NULL,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT FK_BookingProducts_Bookings FOREIGN KEY (booking_id) REFERENCES Bookings(booking_id) ON DELETE CASCADE,
-    CONSTRAINT FK_BookingProducts_Products FOREIGN KEY (product_id) REFERENCES Products(product_id)
-);
-go
--- Bảng Promotions (Khuyến mãi)
-CREATE TABLE Promotions (
-    promotion_id INT PRIMARY KEY IDENTITY(1,1),
-    name NVARCHAR(100) NOT NULL,
-    code NVARCHAR(20) UNIQUE,
-    description NVARCHAR(MAX),
-    discount_type NVARCHAR(10) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')), -- Loại giảm giá (phần trăm hoặc cố định)
-    discount_value DECIMAL(10,2) NOT NULL, -- Giá trị giảm giá
-    start_date DATETIME NOT NULL,
-    end_date DATETIME NOT NULL,
-    min_purchase MONEY DEFAULT 0, -- Giá trị mua tối thiểu để áp dụng
-    max_discount MONEY, -- Giảm giá tối đa (cho loại phần trăm)
-    usage_limit INT, -- Giới hạn sử dụng
-    usage_count INT DEFAULT 0, -- Số lần đã sử dụng
-    is_active BIT DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE()
-);
-go
--- Bảng Booking_Promotions (Khuyến mãi áp dụng cho đặt vé)
-CREATE TABLE Booking_Promotions (
-    id INT PRIMARY KEY IDENTITY(1,1),
-    booking_id INT NOT NULL,
-    promotion_id INT NOT NULL,
-    discount_amount MONEY NOT NULL,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT FK_BookingPromotions_Bookings FOREIGN KEY (booking_id) REFERENCES Bookings(booking_id) ON DELETE CASCADE,
-    CONSTRAINT FK_BookingPromotions_Promotions FOREIGN KEY (promotion_id) REFERENCES Promotions(promotion_id)
-);
-go
--- Bảng Reviews (Đánh giá phim)
-CREATE TABLE Reviews (
-    review_id INT PRIMARY KEY IDENTITY(1,1),
-    user_id INT NOT NULL,
-    movie_id INT NOT NULL,
-    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 10), -- Đánh giá từ 1-10
-    comment NVARCHAR(MAX),
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT FK_Reviews_Users FOREIGN KEY (user_id) REFERENCES Users(user_id),
-    CONSTRAINT FK_Reviews_Movies FOREIGN KEY (movie_id) REFERENCES Movies(movie_id) ON DELETE CASCADE,
-    CONSTRAINT UQ_User_Movie UNIQUE (user_id, movie_id) -- Mỗi người dùng chỉ có thể đánh giá một bộ phim một lần
-);
-go
--- Bảng Payments (Thanh toán)
-CREATE TABLE Payments (
-    payment_id INT PRIMARY KEY IDENTITY(1,1),
-    booking_id INT NOT NULL,
-    amount MONEY NOT NULL,
-    payment_method NVARCHAR(50) NOT NULL,
-    transaction_id NVARCHAR(100),
-    payment_status NVARCHAR(20) NOT NULL,
-    payment_date DATETIME DEFAULT GETDATE(),
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT FK_Payments_Bookings FOREIGN KEY (booking_id) REFERENCES Bookings(booking_id)
-);
 
--- Trigger để cập nhật trường updated_at khi dữ liệu được cập nhật
-GO
-CREATE TRIGGER TR_Users_UpdatedAt ON Users AFTER UPDATE AS
-BEGIN
-    UPDATE Users SET updated_at = GETDATE() FROM Users INNER JOIN inserted ON Users.user_id = inserted.user_id
-END
-GO
-
-CREATE TRIGGER TR_Movies_UpdatedAt ON Movies AFTER UPDATE AS
-BEGIN
-    UPDATE Movies SET updated_at = GETDATE() FROM Movies INNER JOIN inserted ON Movies.movie_id = inserted.movie_id
-END
-GO
-
-CREATE TRIGGER TR_Cinemas_UpdatedAt ON Cinemas AFTER UPDATE AS
-BEGIN
-    UPDATE Cinemas SET updated_at = GETDATE() FROM Cinemas INNER JOIN inserted ON Cinemas.cinema_id = inserted.cinema_id
-END
-GO
-
-CREATE TRIGGER TR_Rooms_UpdatedAt ON Rooms AFTER UPDATE AS
-BEGIN
-    UPDATE Rooms SET updated_at = GETDATE() FROM Rooms INNER JOIN inserted ON Rooms.room_id = inserted.room_id
-END
-GO
-
-CREATE TRIGGER TR_Seats_UpdatedAt ON Seats AFTER UPDATE AS
-BEGIN
-    UPDATE Seats SET updated_at = GETDATE() FROM Seats INNER JOIN inserted ON Seats.seat_id = inserted.seat_id
-END
-GO
-
-CREATE TRIGGER TR_Showtimes_UpdatedAt ON Showtimes AFTER UPDATE AS
-BEGIN
-    UPDATE Showtimes SET updated_at = GETDATE() FROM Showtimes INNER JOIN inserted ON Showtimes.showtime_id = inserted.showtime_id
-END
-GO
-
-CREATE TRIGGER TR_PriceTypes_UpdatedAt ON Price_Types AFTER UPDATE AS
-BEGIN
-    UPDATE Price_Types SET updated_at = GETDATE() FROM Price_Types INNER JOIN inserted ON Price_Types.price_type_id = inserted.price_type_id
-END
-GO
-
-CREATE TRIGGER TR_ShowtimePriceTypes_UpdatedAt ON Showtime_Price_Types AFTER UPDATE AS
-BEGIN
-    UPDATE Showtime_Price_Types SET updated_at = GETDATE() FROM Showtime_Price_Types INNER JOIN inserted ON Showtime_Price_Types.id = inserted.id
-END
-GO
-
-CREATE TRIGGER TR_Bookings_UpdatedAt ON Bookings AFTER UPDATE AS
-BEGIN
-    UPDATE Bookings SET updated_at = GETDATE() FROM Bookings INNER JOIN inserted ON Bookings.booking_id = inserted.booking_id
-END
-GO
-
-CREATE TRIGGER TR_BookingDetails_UpdatedAt ON Booking_Details AFTER UPDATE AS
-BEGIN
-    UPDATE Booking_Details SET updated_at = GETDATE() FROM Booking_Details INNER JOIN inserted ON Booking_Details.booking_detail_id = inserted.booking_detail_id
-END
-GO
-
-CREATE TRIGGER TR_Products_UpdatedAt ON Products AFTER UPDATE AS
-BEGIN
-    UPDATE Products SET updated_at = GETDATE() FROM Products INNER JOIN inserted ON Products.product_id = inserted.product_id
-END
-GO
-
-CREATE TRIGGER TR_BookingProducts_UpdatedAt ON Booking_Products AFTER UPDATE AS
-BEGIN
-    UPDATE Booking_Products SET updated_at = GETDATE() FROM Booking_Products INNER JOIN inserted ON Booking_Products.id = inserted.id
-END
-GO
-
-CREATE TRIGGER TR_Promotions_UpdatedAt ON Promotions AFTER UPDATE AS
-BEGIN
-    UPDATE Promotions SET updated_at = GETDATE() FROM Promotions INNER JOIN inserted ON Promotions.promotion_id = inserted.promotion_id
-END
-GO
-
-CREATE TRIGGER TR_BookingPromotions_UpdatedAt ON Booking_Promotions AFTER UPDATE AS
-BEGIN
-    UPDATE Booking_Promotions SET updated_at = GETDATE() FROM Booking_Promotions INNER JOIN inserted ON Booking_Promotions.id = inserted.id
-END
-GO
-
-CREATE TRIGGER TR_Reviews_UpdatedAt ON Reviews AFTER UPDATE AS
-BEGIN
-    UPDATE Reviews SET updated_at = GETDATE() FROM Reviews INNER JOIN inserted ON Reviews.review_id = inserted.review_id
-END
-GO
-
-CREATE TRIGGER TR_Payments_UpdatedAt ON Payments AFTER UPDATE AS
-BEGIN
-    UPDATE Payments SET updated_at = GETDATE() FROM Payments INNER JOIN inserted ON Payments.payment_id = inserted.payment_id
-END
-GO
-
-
-
--- Insert dữ liệu mẫu
-
-
+-- INSERT data for Users table
 INSERT INTO Users (username, password, email, full_name, phone_number, date_of_birth, address, is_admin)
-VALUES 
-('john_doe', 'password123', 'john.doe@example.com', 'John Doe', '1234567890', '1985-05-15', '123 Main St, Anytown, USA', 0),
-('jane_smith', 'password456', 'jane.smith@example.com', 'Jane Smith', '0987654321', '1990-08-25', '456 Elm St, Othertown, USA', 0),
-('admin_user', 'adminpassword', 'admin@example.com', 'Admin User', '1122334455', '1980-01-01', '789 Oak St, Admin City, USA', 1);
-GO
--- Insert additional movies - Currently showing movies
--- Insert currently showing movies
+VALUES
+  ('admin', 'hashed_admin_pw', 'admin@cinemamanager.com', 'Administrator', '0901234567', '1990-01-01', '123 Admin St, District 1, HCMC', 1),
+  ('manager', 'hashed_manager_pw', 'manager@cinemamanager.com', 'Cinema Manager', '0902345678', '1988-05-12', '456 Manager Ave, District 2, HCMC', 1),
+  ('john_doe', 'hashed_password1', 'john.doe@email.com', 'John Doe', '0912345678', '1992-03-15', '789 Customer Rd, District 3, HCMC', 0),
+  ('jane_smith', 'hashed_password2', 'jane.smith@email.com', 'Jane Smith', '0923456789', '1995-07-22', '101 User Blvd, District 4, HCMC', 0),
+  ('robert_johnson', 'hashed_password3', 'robert.johnson@email.com', 'Robert Johnson', '0934567890', '1988-11-30', '202 Movie St, District 5, HCMC', 0),
+  ('mary_williams', 'hashed_password4', 'mary.williams@email.com', 'Mary Williams', '0945678901', '1998-02-17', '303 Cinema Ave, District 6, HCMC', 0),
+  ('david_brown', 'hashed_password5', 'david.brown@email.com', 'David Brown', '0956789012', '1991-09-08', '404 Film Road, District 7, HCMC', 0);
+go
+-- INSERT data for Movies table
 INSERT INTO Movies (title, description, duration, release_date, end_date, genre, director, cast, poster_url, trailer_url, language, subtitle, rating, age_restriction)
-VALUES 
-('The Last Journey', 'An epic adventure across unexplored lands where a group of explorers discover ancient secrets.', 145, '2025-01-05', '2025-03-10', 'Adventure, Fantasy', 'Christopher Nolan', 'Tom Hardy, Zendaya, Ryan Gosling', '/posters/last_journey.jpg', '/trailers/last_journey.mp4', 'English', 'Vietnamese', 8.4, 'C13'),
-
-('Whispers in the Dark', 'A psychological thriller about a detective who begins to question his own sanity while investigating a series of mysterious disappearances.', 118, '2025-01-18', '2025-03-18', 'Thriller, Mystery', 'David Lynch', 'Jake Gyllenhaal, Tilda Swinton, Michael Shannon', '/posters/whispers.jpg', '/trailers/whispers.mp4', 'English', 'Vietnamese', 7.9, 'C16'),
-
-('Comedy Hour', 'A hilarious comedy about a group of friends who start their own stand-up comedy club in a small town.', 105, '2025-01-22', '2025-03-22', 'Comedy', 'Judd Apatow', 'Kevin Hart, Amy Schumer, Seth Rogen', '/posters/comedy_hour.jpg', '/trailers/comedy_hour.mp4', 'English', 'Vietnamese', 7.5, 'C13'),
-
-('Family Reunion', 'A heartwarming story about three generations coming together to celebrate their grandmother''s 90th birthday.', 110, '2025-02-05', '2025-04-05', 'Drama, Family', 'Greta Gerwig', 'Meryl Streep, Viola Davis, Timothee Chalamet', '/posters/family_reunion.jpg', '/trailers/family_reunion.mp4', 'English', 'Vietnamese', 8.1, 'P'),
-
-('Robot Revolution', 'In a near future, artificial intelligence robots begin developing consciousness and fighting for their rights.', 132, '2025-02-08', '2025-04-10', 'Sci-Fi, Action', 'Denis Villeneuve', 'Idris Elba, Ana de Armas, Oscar Isaac', '/posters/robot_revolution.jpg', '/trailers/robot_revolution.mp4', 'English', 'Vietnamese', 8.3, 'C13'),
-
-('Midnight Dancers', 'A musical drama following the lives of street dancers who perform at night to raise money for their community center.', 128, '2025-01-15', '2025-03-15', 'Musical, Drama', 'Lin-Manuel Miranda', 'Zendaya, Anthony Ramos, Ariana Grande', '/posters/midnight_dancers.jpg', '/trailers/midnight_dancers.mp4', 'English', 'Vietnamese', 8.0, 'P'),
-
-('Ocean''s Depths', 'A documentary exploring the unexplored regions of the Mariana Trench and the strange creatures that live there.', 95, '2025-02-01', '2025-04-01', 'Documentary', 'James Cameron', 'Narrated by David Attenborough', '/posters/oceans_depths.jpg', '/trailers/oceans_depths.mp4', 'English', 'Vietnamese', 8.6, 'P');
-
-GO
-
-
--- Insert upcoming movies (release_date is after current date)
-INSERT INTO Movies (title, description, duration, release_date, end_date, genre, director, cast, poster_url, trailer_url, language, subtitle, rating, age_restriction)
-VALUES 
-('The Hidden Kingdom', 'A fantasy adventure about a young girl who discovers a portal to a magical kingdom threatened by dark forces.', 140, '2025-03-15', '2025-05-15', 'Fantasy, Adventure', 'Guillermo del Toro', 'Millie Bobby Brown, Lupita Nyongo, Ken Watanabe', '/posters/hidden_kingdom.jpg', '/trailers/hidden_kingdom.mp4', 'English', 'Vietnamese', 8.2, 'P'),
-
-('Speed Demons', 'A high-octane action film about street racing and undercover operations.', 125, '2025-03-20', '2025-05-20', 'Action, Crime', 'Justin Lin', 'John Cena, Michelle Rodriguez, Jason Statham', '/posters/speed_demons.jpg', '/trailers/speed_demons.mp4', 'English', 'Vietnamese', 7.8, 'C16'),
-
-('Lost in Translation 2', 'The sequel to the beloved film follows a new generation experiencing cultural disconnection in modern-day Tokyo.', 115, '2025-03-25', '2025-05-25', 'Drama, Comedy', 'Sofia Coppola', 'Elle Fanning, Rinko Kikuchi, Dev Patel', '/posters/lost_translation2.jpg', '/trailers/lost_translation2.mp4', 'English, Japanese', 'Vietnamese', 7.9, 'C13'),
-
-('The Heist', 'A meticulously planned bank heist goes awry, leading to a tense standoff with police.', 130, '2025-04-01', '2025-06-01', 'Crime, Thriller', 'Steven Soderbergh', 'Daniel Craig, Jennifer Lawrence, Mahershala Ali', '/posters/the_heist.jpg', '/trailers/the_heist.mp4', 'English', 'Vietnamese', 8.0, 'C16'),
-
-('Prehistoric Planet', 'When a scientific experiment goes wrong, a modern city is transported back to the Jurassic period.', 138, '2025-04-10', '2025-06-10', 'Sci-Fi, Adventure', 'J.A. Bayona', 'Chris Pratt, Bryce Dallas Howard, Jeff Goldblum', '/posters/prehistoric_planet.jpg', '/trailers/prehistoric_planet.mp4', 'English', 'Vietnamese', 8.2, 'C13'),
-
-('Eternal Love', 'A romantic drama spanning several decades following two lovers who keep finding each other.', 135, '2025-04-15', '2025-06-15', 'Romance, Drama', 'Richard Linklater', 'Saoirse Ronan, Timothee Chalamet, Florence Pugh', '/posters/eternal_love.jpg', '/trailers/eternal_love.mp4', 'English', 'Vietnamese', 8.1, 'C13'),
-
-('Shadows of War', 'A gripping historical drama set during World War II from the perspective of civilians.', 150, '2025-04-20', '2025-06-20', 'War, Drama, History', 'Sam Mendes', 'Gary Oldman, Barry Keoghan, Jessie Buckley', '/posters/shadows_of_war.jpg', '/trailers/shadows_of_war.mp4', 'English', 'Vietnamese', 8.5, 'C16'),
-
-('Laugh Factory', 'A behind-the-scenes look at the competitive world of stand-up comedy.', 112, '2025-05-01', '2025-07-01', 'Comedy, Drama', 'Bo Burnham', 'Bill Hader, Awkwafina, John Mulaney', '/posters/laugh_factory.jpg', '/trailers/laugh_factory.mp4', 'English', 'Vietnamese', 7.7, 'C16'),
-
-('Virtual Reality', 'In a world where most people live in a virtual reality, one woman discovers the truth.', 142, '2025-05-10', '2025-07-10', 'Sci-Fi, Thriller', 'Lana Wachowski', 'Zoe Saldana, John Boyega, Keanu Reeves', '/posters/virtual_reality.jpg', '/trailers/virtual_reality.mp4', 'English', 'Vietnamese', 8.3, 'C13'),
-
-('Mountain of Souls', 'A horror film about hikers who become stranded on a haunted mountain.', 108, '2025-05-15', '2025-07-15', 'Horror, Thriller', 'Ari Aster', 'Florence Pugh, Willem Dafoe, Toni Collette', '/posters/mountain_souls.jpg', '/trailers/mountain_souls.mp4', 'English', 'Vietnamese', 7.6, 'C18');
-GO
-
-INSERT INTO Cinemas (name, address, city, phone_number, email, description)
-VALUES 
-('Galaxy Cinema', '123 Movie Street, District 1', 'Ho Chi Minh City', '028-1234-5678', 'contact@galaxycinema.com', 'Premium theater with latest technology'),
-('Star Movies', '456 Entertainment Avenue, District 3', 'Ho Chi Minh City', '028-8765-4321', 'info@starmovies.com', 'Family-friendly cinema with affordable prices'),
-('Mega Films', '789 Cinema Boulevard, District 7', 'Ho Chi Minh City', '028-2468-1357', 'support@megafilms.com', 'Luxury experience with premium seating');
-GO
--- Insert data for Rooms
+VALUES
+  -- Currently Showing Movies (Current date: March 2025)
+  ('Dune: Part Three', 'The epic conclusion of Paul Atreides journey as he unites with Chani and the Fremen to bring peace to the desert planet of Arrakis.', 165, '2025-02-10', '2025-03-31', 'Sci-Fi, Adventure, Drama', 'Denis Villeneuve', 'Timothée Chalamet, Zendaya, Rebecca Ferguson', '/posters/dune3.jpg', '/trailers/dune3.mp4', 'English', 'Vietnamese', 9.1, 'C13'),
+  
+  ('Avengers: Secret Wars', 'The Avengers must navigate the multiverse to stop a reality-threatening force that could end everything they know.', 182, '2025-02-20', '2025-04-10', 'Action, Adventure, Sci-Fi', 'Russo Brothers', 'Robert Downey Jr., Chris Evans, Mark Ruffalo, Scarlett Johansson', '/posters/avengers_secret_wars.jpg', '/trailers/avengers_secret_wars.mp4', 'English', 'Vietnamese', 8.8, 'C13'),
+  
+  ('The Last Samurai: Legacy', 'A modern descendant of Nathan Algren discovers his ancestors journal and travels to Japan to explore his heritage.', 155, '2025-02-15', '2025-03-20', 'Action, Drama, History', 'James Mangold', 'Ken Watanabe, Christian Bale, Zhang Ziyi', '/posters/last_samurai_legacy.jpg', '/trailers/last_samurai_legacy.mp4', 'English, Japanese', 'Vietnamese, English', 8.2, 'C16'),
+  
+  ('Seoul Stories', 'Four interconnected stories of love, loss, and redemption set against the backdrop of modern Seoul.', 128, '2025-02-01', '2025-03-15', 'Drama, Romance', 'Park Chan-wook', 'Lee Min-ho, Kim Go-eun, Gong Yoo, Bae Doona', '/posters/seoul_stories.jpg', '/trailers/seoul_stories.mp4', 'Korean', 'Vietnamese, English', 8.7, 'C16'),
+  
+  ('Fast & Furious: Final Ride', 'Dom Toretto and his family face their ultimate challenge as past enemies unite against them.', 145, '2025-01-30', '2025-03-25', 'Action, Crime, Thriller', 'Justin Lin', 'Vin Diesel, Michelle Rodriguez, Tyrese Gibson', '/posters/ff_final.jpg', '/trailers/ff_final.mp4', 'English', 'Vietnamese', 7.6, 'C13'),
+  
+  -- Upcoming Movies
+  ('Jurassic World: New Era', 'Twenty years after the fall of Jurassic World, dinosaurs have integrated into ecosystems worldwide, creating a new era of human-dinosaur coexistence.', 152, '2025-03-20', '2025-05-20', 'Action, Adventure, Sci-Fi', 'Colin Trevorrow', 'Chris Pratt, Bryce Dallas Howard, Sam Neill', '/posters/jurassic_new_era.jpg', '/trailers/jurassic_new_era.mp4', 'English', 'Vietnamese', 0.0, 'C13');
+go
+-- INSERT data for Cinemas table
+INSERT INTO Cinemas (name, address, city, phone_number, email, description, image_url)
+VALUES
+  ('CGV Landmark 81', '208 Binh Thanh District', 'Ho Chi Minh City', '028-1234-5678', 'landmark81@cgv.vn', 'Luxury cinema located in the iconic Landmark 81 skyscraper', '/images/cgv_landmark81.jpg'),
+  ('Galaxy Nguyen Du', '116 Nguyen Du, District 1', 'Ho Chi Minh City', '028-2345-6789', 'nguyendu@galaxy.vn', 'Modern cinema complex in the heart of District 1', '/images/galaxy_nguyendu.jpg'),
+  ('BHD Star Vincom Center', '72 Le Thanh Ton, District 1', 'Ho Chi Minh City', '028-3456-7890', 'vincom@bhd.vn', 'Premium cinema experience in Vincom Center', '/images/bhd_vincom.jpg');
+go
+-- INSERT data for Rooms table
 INSERT INTO Rooms (cinema_id, room_name, capacity, room_type)
 VALUES
--- Galaxy Cinema rooms
-(1, 'Room A1', 120, '2D'),
-(1, 'Room A2', 150, '3D'),
-(1, 'Room A3', 100, '2D'),
-(1, 'Room A4', 180, 'IMAX'),
--- Star Movies rooms
-(2, 'Room B1', 100, '2D'),
-(2, 'Room B2', 120, '3D'),
-(2, 'Room B3', 80, '2D'),
--- Mega Films rooms
-(3, 'Room C1', 150, '2D'),
-(3, 'Room C2', 200, '3D'),
-(3, 'Room C3', 120, '4DX'),
-(3, 'Room C4', 250, 'IMAX');
+  (1, 'Screen 1', 150, 'IMAX'),
+  (1, 'Screen 2', 120, '4DX'),
+  (1, 'Screen 3', 100, '3D'),
+  (1, 'Screen 4', 80, '2D'),
+  (2, 'Hall A', 130, '3D'),
+  (2, 'Hall B', 110, '2D'),
+  (3, 'Premier 1', 100, 'SCREENX'),
+  (3, 'Premier 2', 100, '3D');
+go
+
+  go
+  -- Insert complete seats for Room 1 (IMAX, capacity 150)
+-- VIP rows (A-B, 15 seats per row)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 1, 'A', number, 'VIP', 1.30
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS number FROM master.dbo.spt_values WHERE type = 'P' AND number <= 15) AS nums;
+
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 1, 'B', number, 'VIP', 1.30
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS number FROM master.dbo.spt_values WHERE type = 'P' AND number <= 15) AS nums;
+
+-- Standard rows (C-H, 15 seats per row)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 1, char(ASCII('C') + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 6) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 15) AS cols;
+
+-- Couple seats (I-J, 7 double-seats per row)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 1, 'I', number*2-1, 'Couple', 1.50
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS number 
+      FROM master.dbo.spt_values WHERE type = 'P' AND number <= 7) AS nums
+WHERE NOT EXISTS (
+    SELECT 1 FROM Seats 
+    WHERE room_id = 1 AND seat_row = 'I' AND seat_number = (number*2-1)
+);
+go
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 1, 'J', number*2-1, 'Couple', 1.50
+FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS number FROM master.dbo.spt_values WHERE type = 'P' AND number <= 7) AS nums;
+go
+-- Insert seats for Room 2 (4DX)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 2, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 8) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 15) AS cols;
+go
+-- Insert seats for Room 4 (2D)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 4, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 8) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS cols;
+go
+-- Insert seats for Room 5 (Hall A at Galaxy Nguyen Du)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 5, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 13) AS cols;
+GO
+-- Add a few VIP seats in the front row
+UPDATE Seats 
+SET seat_type = 'VIP', price_modifier = 1.30
+WHERE room_id = 5 AND seat_row = 'A' AND seat_number BETWEEN 4 AND 10;
+GO
+-- Insert seats for Room 6 (Hall B at Galaxy Nguyen Du)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 6, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 11) AS cols;
 GO
 
--- Insert data for Seats
--- For Room A1 (Galaxy Cinema, 2D)
-INSERT INTO Seats (room_id, seat_row, seat_number, seat_type)
+-- Add some VIP seats in the center
+UPDATE Seats 
+SET seat_type = 'VIP', price_modifier = 1.30
+WHERE room_id = 6 AND seat_row IN ('C','D') AND seat_number BETWEEN 4 AND 8;
+GO
+-- Insert seats for Room 7 (Premier 1 - SCREENX at BHD Star Vincom Center)
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 7, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS cols;
+GO
+
+-- Add premium seats in center rows
+UPDATE Seats 
+SET seat_type = 'VIP', price_modifier = 1.30
+WHERE room_id = 7 AND seat_row IN ('D','E') AND seat_number BETWEEN 3 AND 7;
+GO
+-- INSERT data for Showtimes table
+INSERT INTO Showtimes (movie_id, room_id, start_time, end_time, base_price, student_price, child_price, senior_price)
 VALUES
--- Row A - Standard seats
-(1, 'A', 1, 'Standard'),
-(1, 'A', 2, 'Standard'),
-(1, 'A', 3, 'Standard'),
-(1, 'A', 4, 'Standard'),
-(1, 'A', 5, 'Standard'),
-(1, 'A', 6, 'Standard'),
-(1, 'A', 7, 'Standard'),
-(1, 'A', 8, 'Standard'),
-(1, 'A', 9, 'Standard'),
-(1, 'A', 10, 'Standard'),
--- Row B - Standard seats
-(1, 'B', 1, 'Standard'),
-(1, 'B', 2, 'Standard'),
-(1, 'B', 3, 'Standard'),
-(1, 'B', 4, 'Standard'),
-(1, 'B', 5, 'Standard'),
-(1, 'B', 6, 'Standard'),
-(1, 'B', 7, 'Standard'),
-(1, 'B', 8, 'Standard'),
-(1, 'B', 9, 'Standard'),
-(1, 'B', 10, 'Standard'),
--- Row C - Standard seats
-(1, 'C', 1, 'Standard'),
-(1, 'C', 2, 'Standard'),
-(1, 'C', 3, 'Standard'),
-(1, 'C', 4, 'Standard'),
-(1, 'C', 5, 'Standard'),
-(1, 'C', 6, 'Standard'),
-(1, 'C', 7, 'Standard'),
-(1, 'C', 8, 'Standard'),
-(1, 'C', 9, 'Standard'),
-(1, 'C', 10, 'Standard'),
--- Row D - VIP seats
-(1, 'D', 1, 'VIP'),
-(1, 'D', 2, 'VIP'),
-(1, 'D', 3, 'VIP'),
-(1, 'D', 4, 'VIP'),
-(1, 'D', 5, 'VIP'),
-(1, 'D', 6, 'VIP'),
-(1, 'D', 7, 'VIP'),
-(1, 'D', 8, 'VIP'),
-(1, 'D', 9, 'VIP'),
-(1, 'D', 10, 'VIP'),
--- Row E - VIP seats
-(1, 'E', 1, 'VIP'),
-(1, 'E', 2, 'VIP'),
-(1, 'E', 3, 'VIP'),
-(1, 'E', 4, 'VIP'),
-(1, 'E', 5, 'VIP'),
-(1, 'E', 6, 'VIP'),
-(1, 'E', 7, 'VIP'),
-(1, 'E', 8, 'VIP'),
-(1, 'E', 9, 'VIP'),
-(1, 'E', 10, 'VIP'),
--- Row F - Couple seats (double seats, so fewer numbers)
-(1, 'F', 1, 'Couple'),
-(1, 'F', 2, 'Couple'),
-(1, 'F', 3, 'Couple'),
-(1, 'F', 4, 'Couple'),
-(1, 'F', 5, 'Couple');
-GO
-
--- Insert data for Room A2 (60 seats for brevity)
-INSERT INTO Seats (room_id, seat_row, seat_number, seat_type)
+  -- Dune: Part Three (ID 1)
+  (1, 1, '2025-03-10 10:00:00', '2025-03-10 12:45:00', 150000, 120000, 90000, 112500), -- Morning IMAX
+  (1, 1, '2025-03-10 19:00:00', '2025-03-10 21:45:00', 200000, 160000, 120000, 150000), -- Evening IMAX
+  (1, 3, '2025-03-10 16:30:00', '2025-03-10 19:15:00', 150000, 120000, 90000, 112500), -- Evening 3D
+  
+  -- Avengers: Secret Wars (ID 2)
+  (2, 2, '2025-03-10 15:00:00', '2025-03-10 18:02:00', 200000, 160000, 120000, 150000), -- Afternoon 4DX
+  (2, 2, '2025-03-10 20:00:00', '2025-03-10 23:02:00', 220000, 176000, 132000, 165000), -- Evening 4DX
+  (2, 4, '2025-03-10 10:30:00', '2025-03-10 13:32:00', 100000, 80000, 60000, 75000),    -- Morning 2D
+  
+  -- The Last Samurai: Legacy (ID 3)
+  (3, 5, '2025-03-10 11:30:00', '2025-03-10 14:05:00', 100000, 80000, 60000, 75000),
+  (3, 5, '2025-03-10 18:00:00', '2025-03-10 20:35:00', 120000, 96000, 72000, 90000),
+  
+  -- Seoul Stories (ID 4)
+  (4, 6, '2025-03-10 12:00:00', '2025-03-10 14:08:00', 120000, 96000, 72000, 90000),
+  
+  -- Fast & Furious: Final Ride (ID 5)
+  (5, 7, '2025-03-10 15:45:00', '2025-03-10 18:10:00', 120000, 96000, 72000, 90000),
+  
+  -- Upcoming: Jurassic World: New Era (ID 6)
+  (6, 1, '2025-03-20 15:30:00', '2025-03-20 18:02:00', 200000, 160000, 120000, 150000);
+go
+-- INSERT data for Bookings table
+INSERT INTO Bookings (user_id, booking_date, total_amount, discount_amount, discount_code, additional_purchases, payment_method, transaction_id, payment_status, booking_status, payment_date)
 VALUES
--- Rows A-C: Standard
-(2, 'A', 1, 'Standard'), (2, 'A', 2, 'Standard'), (2, 'A', 3, 'Standard'), (2, 'A', 4, 'Standard'), (2, 'A', 5, 'Standard'), 
-(2, 'A', 6, 'Standard'), (2, 'A', 7, 'Standard'), (2, 'A', 8, 'Standard'), (2, 'A', 9, 'Standard'), (2, 'A', 10, 'Standard'),
-(2, 'B', 1, 'Standard'), (2, 'B', 2, 'Standard'), (2, 'B', 3, 'Standard'), (2, 'B', 4, 'Standard'), (2, 'B', 5, 'Standard'), 
-(2, 'B', 6, 'Standard'), (2, 'B', 7, 'Standard'), (2, 'B', 8, 'Standard'), (2, 'B', 9, 'Standard'), (2, 'B', 10, 'Standard'),
-(2, 'C', 1, 'Standard'), (2, 'C', 2, 'Standard'), (2, 'C', 3, 'Standard'), (2, 'C', 4, 'Standard'), (2, 'C', 5, 'Standard'), 
-(2, 'C', 6, 'Standard'), (2, 'C', 7, 'Standard'), (2, 'C', 8, 'Standard'), (2, 'C', 9, 'Standard'), (2, 'C', 10, 'Standard'),
--- Rows D-E: VIP
-(2, 'D', 1, 'VIP'), (2, 'D', 2, 'VIP'), (2, 'D', 3, 'VIP'), (2, 'D', 4, 'VIP'), (2, 'D', 5, 'VIP'), 
-(2, 'D', 6, 'VIP'), (2, 'D', 7, 'VIP'), (2, 'D', 8, 'VIP'), (2, 'D', 9, 'VIP'), (2, 'D', 10, 'VIP'),
-(2, 'E', 1, 'VIP'), (2, 'E', 2, 'VIP'), (2, 'E', 3, 'VIP'), (2, 'E', 4, 'VIP'), (2, 'E', 5, 'VIP'), 
-(2, 'E', 6, 'VIP'), (2, 'E', 7, 'VIP'), (2, 'E', 8, 'VIP'), (2, 'E', 9, 'VIP'), (2, 'E', 10, 'VIP'),
--- Row F: Couple
-(2, 'F', 1, 'Couple'), (2, 'F', 2, 'Couple'), (2, 'F', 3, 'Couple'), (2, 'F', 4, 'Couple'), (2, 'F', 5, 'Couple');
-GO
-
--- Insert Price Types
-INSERT INTO Price_Types (name, description, modifier)
+  (3, '2025-03-08 14:23:15', 435000, 0, NULL, 85000, 'Credit Card', 'TXN123456789', 'Completed', 'Confirmed', '2025-03-08 14:25:32'),
+  (4, '2025-03-08 10:45:22', 327000, 20000, 'WELCOME25', 0, 'E-Wallet', 'EWALLET98765432', 'Completed', 'Confirmed', '2025-03-08 10:47:15'),
+  (5, '2025-03-09 18:12:37', 580000, 50000, 'MARCH10', 150000, 'Credit Card', 'TXN234567890', 'Completed', 'Confirmed', '2025-03-09 18:14:23'),
+  (6, '2025-03-09 20:34:19', 198000, 0, NULL, 65000, 'Debit Card', 'DC345678901', 'Completed', 'Confirmed', '2025-03-09 20:36:42');
+go
+-- INSERT data for Booking_Details table
+INSERT INTO Booking_Details (booking_id, showtime_id, seat_id, price, ticket_type)
 VALUES
-('Standard', 'Regular ticket price', 1.0),
-('Student', 'Discount for students with valid ID', 0.8),
-('Senior', 'Discount for seniors over 65', 0.8),
-('Child', 'Discount for children under 12', 0.7),
-('VIP', 'Premium experience with VIP seating', 1.5),
-('Couple', 'Special rate for couple seats', 1.8),
-('Morning', 'Discount for morning showtimes before 12PM', 0.9),
-('Late Night', 'Special rate for shows after 10PM', 0.9),
-('Weekend Premium', 'Premium rate for weekend shows', 1.2);
-GO
-select * from Showtimes
--- Insert Showtimes for currently showing movies
-INSERT INTO Showtimes (movie_id, room_id, start_time, end_time, price)
-VALUES
--- The Last Journey (movie_id 1) showtimes
-(1, 1, '2025-03-01 10:00:00', '2025-03-01 12:25:00', 100000), -- Morning show
-(1, 1, '2025-03-01 13:00:00', '2025-03-01 15:25:00', 120000), -- Afternoon show
-(1, 1, '2025-03-01 16:00:00', '2025-03-01 18:25:00', 150000), -- Evening show
-(1, 1, '2025-03-01 19:00:00', '2025-03-01 21:25:00', 150000), -- Night show
-(1, 2, '2025-03-01 11:30:00', '2025-03-01 13:55:00', 120000), -- 3D showing
-(1, 2, '2025-03-01 14:30:00', '2025-03-01 16:55:00', 150000), -- 3D showing
-(1, 2, '2025-03-01 17:30:00', '2025-03-01 19:55:00', 180000), -- 3D showing
-(1, 4, '2025-03-01 12:00:00', '2025-03-01 14:25:00', 200000), -- IMAX showing
-(1, 4, '2025-03-01 15:00:00', '2025-03-01 17:25:00', 220000), -- IMAX showing
-(1, 4, '2025-03-01 18:00:00', '2025-03-01 20:25:00', 250000), -- IMAX showing
-
--- Whispers in the Dark (movie_id 2) showtimes
-(2, 3, '2025-03-01 10:30:00', '2025-03-01 12:28:00', 100000), -- Morning show
-(2, 3, '2025-03-01 13:30:00', '2025-03-01 15:28:00', 120000), -- Afternoon show
-(2, 3, '2025-03-01 16:30:00', '2025-03-01 18:28:00', 150000), -- Evening show
-(2, 3, '2025-03-01 19:30:00', '2025-03-01 21:28:00', 150000), -- Night show
-(2, 8, '2025-03-01 11:00:00', '2025-03-01 12:58:00', 100000), -- At Mega Films
-
--- Comedy Hour (movie_id 3) showtimes
-(3, 5, '2025-03-01 10:15:00', '2025-03-01 12:00:00', 90000),
-(3, 5, '2025-03-01 13:15:00', '2025-03-01 15:00:00', 100000),
-(3, 5, '2025-03-01 16:15:00', '2025-03-01 18:00:00', 130000),
-(3, 5, '2025-03-01 19:15:00', '2025-03-01 21:00:00', 130000),
-
--- Family Reunion (movie_id 4) showtimes
-(4, 6, '2025-03-01 11:15:00', '2025-03-01 13:05:00', 100000),
-(4, 6, '2025-03-01 14:15:00', '2025-03-01 16:05:00', 120000),
-(4, 6, '2025-03-01 17:15:00', '2025-03-01 19:05:00', 150000),
-
--- Robot Revolution (movie_id 5) showtimes
-(5, 7, '2025-03-01 10:45:00', '2025-03-01 12:57:00', 100000),
-(5, 7, '2025-03-01 13:45:00', '2025-03-01 15:57:00', 120000),
-(5, 7, '2025-03-01 16:45:00', '2025-03-01 18:57:00', 150000),
-(5, 7, '2025-03-01 19:45:00', '2025-03-01 21:57:00', 150000),
-(5, 10, '2025-03-01 11:45:00', '2025-03-01 13:57:00', 180000), -- 4DX showing
-
--- Midnight Dancers (movie_id 6) showtimes
-(6, 9, '2025-03-01 12:30:00', '2025-03-01 14:38:00', 100000),
-(6, 9, '2025-03-01 15:30:00', '2025-03-01 17:38:00', 120000),
-(6, 9, '2025-03-01 18:30:00', '2025-03-01 20:38:00', 150000),
-
--- Ocean's Depths (movie_id 7) showtimes
-(7, 11, '2025-03-01 10:00:00', '2025-03-01 11:35:00', 180000), -- IMAX documentary
-(7, 11, '2025-03-01 13:00:00', '2025-03-01 14:35:00', 200000),
-(7, 11, '2025-03-01 16:00:00', '2025-03-01 17:35:00', 220000);
+  -- Booking 1: Two VIP seats for Dune IMAX evening
+  (1, 2, 1, 200000 * 1.3, 'Standard'), -- Seat A1 (VIP)
+  (1, 2, 2, 200000 * 1.3, 'Standard'), -- Seat A2 (VIP)
+  
+  -- Booking 2: Two standard seats for Avengers 4DX evening with student discount
+  (2, 5, 11, 176000, 'Student'), -- Seat B1
+  (2, 5, 12, 176000, 'Student'), -- Seat B2
+  
+  -- Booking 3: Two VIP seats for Dune IMAX morning
+  (3, 1, 6, 150000 * 1.3, 'Standard'), -- Seat B1 (VIP)
+  (3, 1, 7, 150000 * 1.3, 'Standard'), -- Seat B2 (VIP)
+  
+  -- Booking 4: One standard and one child ticket for Last Samurai
+  (4, 8, 21, 120000, 'Standard'), -- First available seat in room 5
+  (4, 8, 22, 72000, 'Child');     -- Child price
 GO
 
--- Insert Showtime_Price_Types
-INSERT INTO Showtime_Price_Types (showtime_id, price_type_id, price)
-VALUES
--- The Last Journey - Standard room (showtime_id 1)
-(1, 1, 100000), -- Standard price
-(1, 2, 80000),  -- Student price
-(1, 3, 80000),  -- Senior price
-(1, 4, 70000),  -- Child price
-(1, 7, 90000),  -- Morning discount
+CREATE PROCEDURE GetAvailableSeats
+    @movieId INT,
+    @cinemaName NVARCHAR(100),
+    @showDate DATE,
+    @startTimeBegin TIME,
+    @startTimeEnd TIME = NULL -- Optional parameter, if not specified will search all times after @startTimeBegin
+AS
+BEGIN
+    -- If end time not specified, set to end of day
+    IF @startTimeEnd IS NULL
+        SET @startTimeEnd = '23:59:59';
 
--- The Last Journey - Standard room (showtime_id 2)
-(2, 1, 120000), -- Standard price
-(2, 2, 96000),  -- Student price
-(2, 3, 96000),  -- Senior price
-(2, 4, 84000),  -- Child price
-
--- The Last Journey - Standard room (showtime_id 3)
-(3, 1, 150000), -- Standard price
-(3, 2, 120000), -- Student price
-(3, 3, 120000), -- Senior price
-(3, 4, 105000), -- Child price
-
--- The Last Journey - Standard room (showtime_id 4)
-(4, 1, 150000), -- Standard price
-(4, 2, 120000), -- Student price
-(4, 3, 120000), -- Senior price
-(4, 4, 105000), -- Child price
-(4, 8, 135000), -- Late night discount
-
--- The Last Journey - 3D room (showtime_id 5)
-(5, 1, 120000), -- Standard price
-(5, 2, 96000),  -- Student price
-(5, 3, 96000),  -- Senior price
-(5, 4, 84000),  -- Child price
-(5, 7, 108000), -- Morning discount
-
--- The Last Journey - 3D room (showtime_id 6)
-(6, 1, 150000), -- Standard price
-(6, 2, 120000), -- Student price
-(6, 3, 120000), -- Senior price
-(6, 4, 105000), -- Child price
-
--- The Last Journey - 3D room (showtime_id 7)
-(7, 1, 180000), -- Standard price
-(7, 2, 144000), -- Student price
-(7, 3, 144000), -- Senior price
-(7, 4, 126000), -- Child price
-
--- The Last Journey - IMAX (showtime_id 8)
-(8, 1, 200000), -- Standard price
-(8, 2, 160000), -- Student price
-(8, 3, 160000), -- Senior price
-(8, 4, 140000), -- Child price
-(8, 5, 300000), -- VIP price
-
--- The Last Journey - IMAX (showtime_id 9)
-(9, 1, 220000), -- Standard price
-(9, 2, 176000), -- Student price
-(9, 3, 176000), -- Senior price
-(9, 4, 154000), -- Child price
-(9, 5, 330000), -- VIP price
-
--- The Last Journey - IMAX (showtime_id 10)
-(10, 1, 250000), -- Standard price
-(10, 2, 200000), -- Student price
-(10, 3, 200000), -- Senior price
-(10, 4, 175000), -- Child price
-(10, 5, 375000); -- VIP price
-GO
-
--- Insert Products (concessions)
-INSERT INTO Products (name, description, price, category, image_url, is_available)
-VALUES
--- Food items
-('Small Popcorn', 'Fresh buttered popcorn', 40000, 'Food', '/images/products/small_popcorn.jpg', 1),
-('Medium Popcorn', 'Fresh buttered popcorn', 60000, 'Food', '/images/products/medium_popcorn.jpg', 1),
-('Large Popcorn', 'Fresh buttered popcorn', 80000, 'Food', '/images/products/large_popcorn.jpg', 1),
-('Caramel Popcorn', 'Sweet caramel flavored popcorn', 70000, 'Food', '/images/products/caramel_popcorn.jpg', 1),
-('Cheese Popcorn', 'Cheesy flavored popcorn', 70000, 'Food', '/images/products/cheese_popcorn.jpg', 1),
-('Nachos', 'Crispy nachos with cheese dip', 65000, 'Food', '/images/products/nachos.jpg', 1),
-('Hot Dog', 'Juicy hot dog with condiments', 55000, 'Food', '/images/products/hot_dog.jpg', 1),
-('Chicken Nuggets', '6 pieces of chicken nuggets', 60000, 'Food', '/images/products/nuggets.jpg', 1),
-('French Fries', 'Crispy golden fries', 50000, 'Food', '/images/products/fries.jpg', 1),
-('Pizza Slice', 'Cheese and pepperoni pizza slice', 70000, 'Food', '/images/products/pizza.jpg', 1),
-
--- Beverages
-('Small Soda', 'Coca-Cola, Pepsi, Sprite, or Fanta', 30000, 'Beverage', '/images/products/small_soda.jpg', 1),
-('Medium Soda', 'Coca-Cola, Pepsi, Sprite, or Fanta', 40000, 'Beverage', '/images/products/medium_soda.jpg', 1),
-('Large Soda', 'Coca-Cola, Pepsi, Sprite, or Fanta', 50000, 'Beverage', '/images/products/large_soda.jpg', 1),
-('Bottled Water', '500ml purified water', 25000, 'Beverage', '/images/products/water.jpg', 1),
-('Coffee', 'Freshly brewed coffee', 45000, 'Beverage', '/images/products/coffee.jpg', 1),
-('Milk Tea', 'Sweet and creamy milk tea', 50000, 'Beverage', '/images/products/milk_tea.jpg', 1),
-('Fruit Juice', 'Orange, apple, or mixed fruit juice', 55000, 'Beverage', '/images/products/juice.jpg', 1),
-
--- Combo deals
-('Popcorn & Soda Combo', 'Medium popcorn and medium soda', 90000, 'Combo', '/images/products/popcorn_soda_combo.jpg', 1),
-('Family Combo', 'Large popcorn, 2 large sodas, and nachos', 160000, 'Combo', '/images/products/family_combo.jpg', 1),
-('Deluxe Combo', 'Large popcorn, large soda, hot dog, and nachos', 200000, 'Combo', '/images/products/deluxe_combo.jpg', 1),
-('Kids Combo', 'Small popcorn, small soda, and candy', 80000, 'Combo', '/images/products/kids_combo.jpg', 1);
-GO
-
--- Insert Promotions
-INSERT INTO Promotions (name, code, description, discount_type, discount_value, start_date, end_date, min_purchase, max_discount, usage_limit, is_active)
-VALUES
-('Welcome Discount', 'WELCOME25', 'Special 25% discount for new users', 'percentage', 25, '2025-01-01', '2025-12-31', 100000, 50000, 1000, 1),
-('Student Tuesday', 'STUDENT20', '20% off on Tuesdays with valid student ID', 'percentage', 20, '2025-01-01', '2025-12-31', 0, 40000, NULL, 1),
-('Family Package', 'FAMILY50K', '50,000 VND off for bookings of 4 or more tickets', 'fixed', 50000, '2025-01-01', '2025-06-30', 300000, NULL, NULL, 1),
-('Weekday Special', 'WEEKDAY15', '15% off for all shows Monday through Thursday', 'percentage', 15, '2025-02-01', '2025-04-30', 100000, 30000, NULL, 1),
-('Mega Cinema Launch', 'MEGA30', '30% off at Mega Cinema', 'percentage', 30, '2025-01-01', '2025-03-31', 150000, 100000, 500, 1),
-('Birthday Treat', 'BIRTHDAY', 'Free ticket on your birthday (min purchase of 1 ticket)', 'fixed', 150000, '2025-01-01', '2025-12-31', 150000, NULL, NULL, 1),
-('Early Bird', 'EARLY20', '20% off for bookings made 7 days in advance', 'percentage', 20, '2025-02-15', '2025-12-31', 100000, 60000, NULL, 1),
-('Valentine Special', 'LOVE2025', 'Special discount for Valentine''s Day', 'percentage', 25, '2025-02-10', '2025-02-14', 200000, 100000, 1000, 1);
-GO
-
--- Insert some sample bookings
-INSERT INTO Bookings (user_id, booking_date, total_amount, payment_method, payment_status, booking_status)
-VALUES
-(1, '2025-02-25 14:22:35', 440000, 'Credit Card', 'Completed', 'Confirmed'),
-(2, '2025-02-26 10:15:42', 285000, 'Momo Wallet', 'Completed', 'Confirmed'),
-(1, '2025-02-26 16:45:13', 650000, 'Bank Transfer', 'Completed', 'Confirmed'),
-(2, '2025-02-27 09:30:22', 310000, 'Credit Card', 'Failed', 'Cancelled'),
-(1, '2025-02-28 18:12:07', 830000, 'Credit Card', 'Completed', 'Confirmed'),
-(3, '2025-03-01 11:05:50', 520000, 'Momo Wallet', 'Pending', 'Pending');
-GO
-
--- Insert booking details for first booking (2 VIP tickets for The Last Journey IMAX showing)
-INSERT INTO Booking_Details (booking_id, showtime_id, seat_id, price_type_id, price)
-VALUES
-(1, 10, 31, 5, 375000), -- VIP seat D1 for IMAX showing of The Last Journey
-(1, 10, 32, 5, 375000); -- VIP seat D2 for IMAX showing of The Last Journey
-GO
-
--- Insert booking details for second booking (2 standard tickets, student discount for Comedy Hour)
-INSERT INTO Booking_Details (booking_id, showtime_id, seat_id, price_type_id, price)
-VALUES
-(2, 17, 11, 2, 96000), -- Standard seat B1 for Comedy Hour with student price
-(2, 17, 12, 2, 96000); -- Standard seat B2 for Comedy Hour with student price
-GO
-
--- Insert booking details for third booking (family of 4 for Robot Revolution)
-INSERT INTO Booking_Details (booking_id, showtime_id, seat_id, price_type_id, price)
-VALUES
-(3, 20, 21, 1, 150000), -- Standard seat C1
-(3, 20, 22, 1, 150000), -- Standard seat C2
-(3, 20, 23, 1, 150000), -- Standard seat C3
-(3, 20, 24, 4, 105000); -- Standard seat C4 (child price)
-GO
-
--- Insert booking details for fifth booking (2 Couple seats + 1 standard for Family Reunion)
-INSERT INTO Booking_Details (booking_id, showtime_id, seat_id, price_type_id, price)
-VALUES
-(5, 13, 51, 6, 216000), -- Couple seat F1
-(5, 5, 52, 6, 216000), -- Couple seat F2
-(5, 5, 1, 1, 120000);  -- Standard seat A1
-GO
-
--- Insert booking products (concessions)
-INSERT INTO Booking_Products (booking_id, product_id, quantity, price)
-VALUES
-(1, 19, 1, 160000), -- Family Combo with booking 1
-(2, 18, 1, 90000),  -- Popcorn & Soda Combo with booking 2
-(3, 19, 1, 160000), -- Family Combo with booking 3
-(3, 10, 1, 70000),  -- Pizza Slice with booking 3
-(5, 20, 1, 200000), -- Deluxe Combo with booking 5
-(5, 3, 1, 80000);   -- Large Popcorn with booking 5
-GO
-
--- Insert Payments for completed bookings
-INSERT INTO Payments (booking_id, amount, payment_method, transaction_id, payment_status, payment_date)
-VALUES
-(1, 440000, 'Credit Card', 'TXN78912345', 'Completed', '2025-02-25 14:24:10'),
-(2, 285000, 'Momo Wallet', 'MOMO98765432', 'Completed', '2025-02-26 10:16:30'),
-(3, 650000, 'Bank Transfer', 'BNK12345678', 'Completed', '2025-02-26 16:47:22'),
-(4, 310000, 'Credit Card', 'TXN23456789', 'Failed', '2025-02-27 09:32:15'),
-(5, 830000, 'Credit Card', 'TXN34567890', 'Completed', '2025-02-28 18:14:45');
-GO
-
--- Insert applied promotions
-INSERT INTO Booking_Promotions (booking_id, promotion_id, discount_amount)
-VALUES
-(1, 1, 110000),  -- Welcome discount (25% off, capped at 50000) for booking 1
-(3, 3, 50000),   -- Family package (fixed 50000 off) for booking 3
-(5, 4, 124500);  -- Weekday special (15% off) for booking 5
-GO
-
--- Insert reviews
-INSERT INTO Reviews (user_id, movie_id, rating, comment)
-VALUES
-(1, 1, 9, 'Amazing effects and storytelling. One of the best adventure movies I''ve seen in years.'),
-(2, 1, 8, 'Great movie with stunning visuals. The plot was engaging throughout.'),
-(1, 2, 7, 'Solid thriller with some good twists. A bit slow in the middle but the ending made up for it.'),
-(2, 3, 9, 'Absolutely hilarious! Haven''t laughed this much in a theater for a long time.'),
-(1, 5, 8, 'Thought-provoking sci-fi with excellent special effects and a compelling story.'),
-(2, 6, 7, 'Good performances and choreography. The music was particularly memorable.'),
-(1, 7, 10, 'Breathtaking documentary. The underwater scenes were unbelievable.');
-GO
-
--- Update movie ratings based on reviews
-UPDATE Movies
-SET rating = (SELECT AVG(CAST(rating AS DECIMAL(3,1))) FROM Reviews WHERE Reviews.movie_id = Movies.movie_id)
-WHERE movie_id IN (SELECT DISTINCT movie_id FROM Reviews);
-GO
-
-
-
-SELECT 
-    m.movie_id,
-    m.title AS movie_title,
-    c.cinema_id,
-    c.name AS cinema_name,
-    c.address AS cinema_address,
-    STRING_AGG(CONVERT(VARCHAR, s.start_time, 108), ', ') AS showing_times,
-    STRING_AGG(r.room_name + ' (' + r.room_type + ')', ', ') AS rooms
-FROM Movies m
-INNER JOIN Showtimes s ON m.movie_id = s.movie_id
-INNER JOIN Rooms r ON s.room_id = r.room_id
-INNER JOIN Cinemas c ON r.cinema_id = c.cinema_id
-GROUP BY m.movie_id, m.title, c.cinema_id, c.name, c.address
-ORDER BY c.name, m.title;
-
-
-
-DECLARE @movie_id INT = 2;  -- ID của bộ phim
-DECLARE @start_time DATETIME = '2025-03-01 10:15:00';
-
--- Truy vấn lấy thông tin phòng và ghế trống cho một bộ phim và thời gian cụ thể
-WITH BookedSeats AS (
-    -- Lấy các ghế đã được đặt cho suất chiếu cụ thể
-    SELECT DISTINCT bd.seat_id
-    FROM Showtimes st
-    JOIN Booking_Details bd ON st.showtime_id = bd.showtime_id
-    WHERE st.movie_id = @movie_id  -- Thay @movie_id bằng ID phim bạn muốn
-    AND st.start_time = @start_time  -- Thay @start_time bằng thời gian bắt đầu phim
-), 
-RoomDetails AS (
-    -- Lấy thông tin chi tiết về phòng chiếu
     SELECT 
-        r.room_id,
+        s.seat_id,
+        s.seat_row,
+        s.seat_number,
+        s.seat_type,
+        s.price_modifier,
         r.room_name,
-        r.cinema_id,
-        c.name AS cinema_name,
         r.room_type,
-        r.capacity
-    FROM Showtimes st
-    JOIN Rooms r ON st.room_id = r.room_id
-    JOIN Cinemas c ON r.cinema_id = c.cinema_id
-    WHERE st.movie_id = @movie_id
-    AND st.start_time = @start_time
-)
+        m.title AS movie_title,
+        c.name AS cinema_name,
+        st.showtime_id,
+        st.start_time,
+        st.end_time,
+        CASE 
+            WHEN s.seat_type = 'Standard' THEN st.base_price * s.price_modifier
+            WHEN s.seat_type = 'VIP' THEN st.base_price * s.price_modifier
+            WHEN s.seat_type = 'Couple' THEN st.base_price * s.price_modifier
+        END AS standard_price,
+        CASE 
+            WHEN s.seat_type = 'Standard' THEN st.student_price * s.price_modifier
+            WHEN s.seat_type = 'VIP' THEN st.student_price * s.price_modifier
+            WHEN s.seat_type = 'Couple' THEN st.student_price * s.price_modifier
+        END AS student_price,
+        CASE 
+            WHEN s.seat_type = 'Standard' THEN st.child_price * s.price_modifier
+            WHEN s.seat_type = 'VIP' THEN st.child_price * s.price_modifier
+            WHEN s.seat_type = 'Couple' THEN st.child_price * s.price_modifier
+        END AS child_price,
+        CASE 
+            WHEN s.seat_type = 'Standard' THEN st.senior_price * s.price_modifier
+            WHEN s.seat_type = 'VIP' THEN st.senior_price * s.price_modifier
+            WHEN s.seat_type = 'Couple' THEN st.senior_price * s.price_modifier
+        END AS senior_price
+    FROM 
+        Seats s
+    JOIN 
+        Rooms r ON s.room_id = r.room_id
+    JOIN 
+        Cinemas c ON r.cinema_id = c.cinema_id
+    JOIN 
+        Showtimes st ON r.room_id = st.room_id
+    JOIN 
+        Movies m ON st.movie_id = m.movie_id
+    LEFT JOIN 
+        Booking_Details bd ON s.seat_id = bd.seat_id AND st.showtime_id = bd.showtime_id
+    LEFT JOIN
+        Bookings b ON bd.booking_id = b.booking_id
+    WHERE 
+        m.movie_id = @movieId
+        AND c.name = @cinemaName
+        AND CAST(st.start_time AS DATE) = @showDate
+        AND CAST(st.start_time AS TIME) BETWEEN @startTimeBegin AND @startTimeEnd
+        AND (bd.booking_detail_id IS NULL OR b.booking_status = 'Cancelled')
+    ORDER BY 
+        st.start_time, s.seat_row, s.seat_number;
+END;
+GO
 
--- Lấy danh sách ghế trống
-SELECT 
-    rd.room_id,
-    rd.room_name,
-    rd.cinema_name,
-    rd.room_type,
-    s.seat_id,
-    s.seat_row,
-    s.seat_number,
-    s.seat_type
-FROM RoomDetails rd
-JOIN Seats s ON s.room_id = rd.room_id
-LEFT JOIN BookedSeats bs ON s.seat_id = bs.seat_id
-WHERE bs.seat_id IS NULL
-ORDER BY s.seat_row, s.seat_number;
+EXEC GetAvailableSeats 
+    @movieId = 1, 
+    @cinemaName = 'CGV Landmark 81',
+    @showDate = '2025-03-10',
+    @startTimeBegin = '04:30:00',
+    @startTimeEnd = '07:15:00';
+GO
+
+-- select * from Booking_Details;
+-- select * from Bookings;
+-- select * from Users;
+
+
+
+CREATE OR ALTER PROCEDURE BookTickets
+    @user_id INT,
+    @showtime_id INT,
+    @seat_ids NVARCHAR(MAX),
+    @ticket_types NVARCHAR(MAX),
+    @payment_method NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Declare variables
+    DECLARE @booking_id INT;
+    DECLARE @total_amount MONEY = 0;
+    DECLARE @transaction_id NVARCHAR(100);
+    DECLARE @error_message NVARCHAR(MAX);
+    DECLARE @showtime_start DATETIME;
+    DECLARE @showtime_end DATETIME;
+    DECLARE @current_time DATETIME = GETDATE();
+    
+    -- Begin transaction
+    BEGIN TRY
+        -- Get showtime information
+        SELECT @showtime_start = start_time, @showtime_end = end_time
+        FROM Showtimes
+        WHERE showtime_id = @showtime_id;
+        
+        -- Check if showtime is in the past
+        IF @showtime_start < @current_time
+        BEGIN
+            RAISERROR('Suất chiếu đã kết thúc hoặc đã bắt đầu', 16, 1);
+            RETURN;
+        END
+ 
+        BEGIN TRANSACTION;
+        
+        -- Create temp table to hold seat and ticket type data
+        CREATE TABLE #BookingSeats (
+            seat_id INT,
+            ticket_type NVARCHAR(20)
+        );
+        
+        -- Parse the comma-delimited seat IDs and ticket types
+        WITH 
+        Seats AS (
+            SELECT 
+                value AS seat_id,
+                ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num
+            FROM STRING_SPLIT(@seat_ids, ',')
+        ),
+        TicketTypes AS (
+            SELECT 
+                value AS ticket_type,
+                ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num
+            FROM STRING_SPLIT(@ticket_types, ',')
+        )
+        INSERT INTO #BookingSeats (seat_id, ticket_type)
+        SELECT Seats.seat_id, TicketTypes.ticket_type
+        FROM Seats JOIN TicketTypes ON Seats.row_num = TicketTypes.row_num;
+
+        -- Validate seats - make sure they're for the correct room and available
+        IF EXISTS (
+            SELECT 1 
+            FROM #BookingSeats bs 
+            JOIN Seats s ON bs.seat_id = s.seat_id
+            JOIN Showtimes st ON st.showtime_id = @showtime_id
+            WHERE s.room_id != st.room_id
+        )
+        BEGIN
+            RAISERROR('Một hoặc nhiều ghế không thuộc phòng chiếu này', 16, 1);
+            RETURN;
+        END
+
+        -- Check if any seat is already booked
+        IF EXISTS (
+            SELECT 1 
+            FROM Booking_Details bd 
+            WHERE bd.showtime_id = @showtime_id 
+            AND bd.seat_id IN (SELECT seat_id FROM #BookingSeats)
+        )
+        BEGIN
+            RAISERROR('Một hoặc nhiều ghế đã được đặt', 16, 1);
+            RETURN;
+        END
+
+        -- Calculate ticket prices based on seat type, ticket type, and showtime pricing
+        SELECT @total_amount = SUM(
+            CASE 
+                WHEN bs.ticket_type = 'Standard' THEN st.base_price * s.price_modifier
+                WHEN bs.ticket_type = 'Student' THEN st.student_price * s.price_modifier
+                WHEN bs.ticket_type = 'Child' THEN st.child_price * s.price_modifier
+                WHEN bs.ticket_type = 'Senior' THEN st.senior_price * s.price_modifier
+            END
+        )
+        FROM #BookingSeats bs
+        JOIN Seats s ON bs.seat_id = s.seat_id
+        CROSS JOIN Showtimes st 
+        WHERE st.showtime_id = @showtime_id;
+        
+        -- Generate a transaction ID
+SET @transaction_id = 'TXN' + CONVERT(VARCHAR(8), GETDATE(), 112) + 
+                     RIGHT('00000000' + CAST(FLOOR(RAND() * 100000000) AS VARCHAR(20)), 8);               
+        -- Insert booking record
+        INSERT INTO Bookings (
+            user_id, booking_date, total_amount, payment_method, 
+            transaction_id, payment_status, booking_status,
+            discount_amount, discount_code, additional_purchases -- Required columns with default values
+        )
+        VALUES (
+            @user_id, GETDATE(), @total_amount, @payment_method,
+            @transaction_id, 'Pending', 'Pending',
+            0, NULL, 0 -- Default values
+        );
+        
+        -- Get the booking ID
+        SET @booking_id = SCOPE_IDENTITY();
+        
+        -- Insert booking details
+        INSERT INTO Booking_Details (
+            booking_id, showtime_id, seat_id, price, ticket_type
+        )
+        SELECT 
+            @booking_id,
+            @showtime_id,
+            bs.seat_id,
+            CASE 
+                WHEN bs.ticket_type = 'Standard' THEN st.base_price * s.price_modifier
+                WHEN bs.ticket_type = 'Student' THEN st.student_price * s.price_modifier
+                WHEN bs.ticket_type = 'Child' THEN st.child_price * s.price_modifier
+                WHEN bs.ticket_type = 'Senior' THEN st.senior_price * s.price_modifier
+            END,
+            bs.ticket_type
+        FROM #BookingSeats bs
+        JOIN Seats s ON bs.seat_id = s.seat_id
+        CROSS JOIN Showtimes st 
+        WHERE st.showtime_id = @showtime_id;
+        
+        -- Simulate payment completion
+        UPDATE Bookings 
+        SET payment_status = 'Completed', 
+            booking_status = 'Confirmed',
+            payment_date = GETDATE()
+        WHERE booking_id = @booking_id;
+        
+        -- Cleanup
+        DROP TABLE #BookingSeats;
+        
+        -- Commit transaction
+        COMMIT TRANSACTION;
+        
+        -- Return booking ID for reference
+        SELECT 
+            @booking_id AS booking_id, 
+            @transaction_id AS transaction_id,
+            @total_amount AS total_amount,
+            @payment_method AS payment_method,
+            'Confirmed' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        -- Rollback on error
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        SET @error_message = ERROR_MESSAGE();
+        
+        -- Return error
+        SELECT 0 AS booking_id, @error_message AS error_message;
+    END CATCH
+END;
+GO
+
+EXEC BookTickets 
+    @user_id = 2,
+    @showtime_id = 1,
+    @seat_ids = '1',
+    @ticket_types = 'Student',
+    @payment_method = 'Credit Card';
+GO
+
+
+
+
+CREATE OR ALTER PROCEDURE CancelBooking
+    @booking_id INT,     -- ID của đặt vé cần hủy
+    @user_id INT     -- ID của người dùng để xác minh quyền hủy vé
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Khai báo biến
+    DECLARE @booking_status NVARCHAR(20);
+    DECLARE @showtime_start DATETIME;
+    DECLARE @current_time DATETIME = GETDATE();
+    DECLARE @time_before_showtime INT = 60; -- Số phút tối thiểu trước giờ chiếu
+    DECLARE @error_message NVARCHAR(MAX);
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        -- Kiểm tra xem đặt vé tồn tại và thuộc về người dùng này không
+        SELECT @booking_status = b.booking_status, @showtime_start = MIN(st.start_time)
+        FROM Bookings b
+        JOIN Booking_Details bd ON b.booking_id = bd.booking_id
+        JOIN Showtimes st ON bd.showtime_id = st.showtime_id
+        WHERE b.booking_id = @booking_id AND b.user_id = @user_id
+        GROUP BY b.booking_status;
+        
+        -- Kiểm tra nếu đặt vé không tồn tại
+        IF @booking_status IS NULL
+        BEGIN
+            RAISERROR('Đặt vé không tồn tại hoặc không thuộc về người dùng này', 16, 1);
+            RETURN;
+        END
+        
+        -- Kiểm tra nếu đặt vé đã bị hủy trước đó
+        IF @booking_status = 'Cancelled'
+        BEGIN
+            RAISERROR('Đặt vé này đã bị hủy trước đó', 16, 1);
+            RETURN;
+        END
+        
+        -- Kiểm tra thời gian - không cho phép hủy vé nếu quá gần giờ chiếu
+        IF DATEDIFF(MINUTE, @current_time, @showtime_start) < @time_before_showtime
+        BEGIN
+            RAISERROR('Không thể hủy vé khi đã quá gần giờ chiếu (cần hủy trước ít nhất %d phút)', 16, 1, @time_before_showtime);
+            RETURN;
+        END
+        
+        -- Cập nhật trạng thái đặt vé
+        UPDATE Bookings
+        SET 
+            booking_status = 'Cancelled',
+            payment_status = 'Refunded',
+            updated_at = GETDATE()
+        WHERE booking_id = @booking_id;
+        
+        -- Commit transaction
+        COMMIT TRANSACTION;
+        
+        -- Trả về thông báo thành công
+        SELECT 
+            @booking_id AS booking_id,
+            'Cancelled' AS booking_status,
+            'Refunded' AS payment_status,
+            'Đặt vé đã được hủy thành công và tiền sẽ được hoàn trả' AS message;
+        
+    END TRY
+    BEGIN CATCH
+        -- Rollback nếu có lỗi
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        SET @error_message = ERROR_MESSAGE();
+        
+        -- Trả về thông báo lỗi
+        SELECT 0 AS booking_id, @error_message AS error_message;
+    END CATCH
+END;
+GO
 
