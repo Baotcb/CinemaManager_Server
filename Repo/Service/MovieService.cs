@@ -19,6 +19,7 @@ namespace Repo.Service
         public List<MovieShowing> GetShowingMovie()
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
+            var todayString = DateTime.Today.ToString("yyyy-MM-dd");
             return _context.Movies
                 .Include(x => x.Showtimes)
                 .Where(x => x.ReleaseDate <= today && x.EndDate >= today)
@@ -29,7 +30,7 @@ namespace Repo.Service
                     Title = x.Title,
           
                     Showtimes = x.Showtimes
-                        .OrderBy(s => s.StartTime.TimeOfDay)
+                        .OrderBy(s => s.StartTime.TimeOfDay).Where(predicate: s => s.StartTime.ToString("yyyy-MM-dd") == todayString)
                         .Select(s => s.StartTime.ToString("HH:mm"))
                         .ToList(),
                     Description = x.Description,
@@ -60,6 +61,7 @@ namespace Repo.Service
         public MovieShowing GetMovieById(int id)
         {
            
+
             var movie = _context.Movies
                 .Include(x => x.Showtimes)
                     .ThenInclude(s => s.Room)
