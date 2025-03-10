@@ -11,7 +11,7 @@ namespace Cinema_Manager_Serve.Controllers
         [HttpGet("GetAvailableSeats/{movieId}/{cinemaName}/{showDate}/{startTimeBegin}/{startTimeEnd}")]
         public IActionResult GetAvailableSeats(int movieId,string cinemaName , DateTime showDate, TimeSpan startTimeBegin, TimeSpan startTimeEnd)
         {
-            var seats = _seatService.GetAvailableSeats(movieId, cinemaName, showDate, startTimeBegin, startTimeEnd);
+            var seats = _seatService.GetRoomSeatingMap(movieId, cinemaName, showDate, startTimeBegin, startTimeEnd);
             return Ok(seats);
         }
     }
