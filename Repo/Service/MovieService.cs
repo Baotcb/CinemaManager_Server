@@ -12,10 +12,11 @@ namespace Repo.Service
     public class MovieService
     {
         private CinemaManagerContext _context = new CinemaManagerContext();
-        public List<Movie> GetAllMovie()
+        public List<Movie> GetAllMovies()
         {
             return _context.Movies.ToList();
         }
+
         public List<MovieShowing> GetShowingMovie()
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -23,12 +24,12 @@ namespace Repo.Service
             return _context.Movies
                 .Include(x => x.Showtimes)
                 .Where(x => x.ReleaseDate <= today && x.EndDate >= today)
-                .AsEnumerable() 
+                .AsEnumerable()
                 .Select(x => new MovieShowing
                 {
                     MovieId = x.MovieId,
                     Title = x.Title,
-          
+
                     Showtimes = x.Showtimes
                         .OrderBy(s => s.StartTime.TimeOfDay).Where(predicate: s => s.StartTime.ToString("yyyy-MM-dd") == todayString)
                         .Select(s => s.StartTime.ToString("HH:mm"))
@@ -60,7 +61,7 @@ namespace Repo.Service
         }
         public MovieShowing GetMovieById(int id)
         {
-           
+
 
             var movie = _context.Movies
                 .Include(x => x.Showtimes)
@@ -73,10 +74,10 @@ namespace Repo.Service
                 return null;
             }
 
-           
+
             var showtimes = movie.Showtimes
                 .OrderBy(s => s.StartTime)
-                .Select(s => $"{s.Room.Cinema.Name} - {s.StartTime}")
+                .Select(s => $"{s.Room.Cinema.Name} - {s.StartTime.ToString("dd/MM/yyy")} {s.StartTime.ToString("HH:mm:ss")}")
                 .ToList();
 
             return new MovieShowing
@@ -120,6 +121,32 @@ namespace Repo.Service
                 return false;
             }
             _context.Movies.Remove(movie);
+            _context.SaveChanges();
+            return true;
+        }
+
+        public bool UpdateMovie(Movie movie)
+        {
+
+            var check = _context.Movies.FirstOrDefault(x => x.MovieId == movie.MovieId);
+            if (check == null)
+            {
+                return false;
+            }
+            check.Title = movie.Title;
+            check.Description = movie.Description;
+            check.Duration = movie.Duration;
+            check.ReleaseDate = movie.ReleaseDate;
+            check.EndDate = movie.EndDate;
+            check.Genre = movie.Genre;
+            check.Director = movie.Director;
+            check.Cast = movie.Cast;
+            check.PosterUrl = movie.PosterUrl;
+            check.TrailerUrl = movie.TrailerUrl;
+            check.Language = movie.Language;
+            check.Subtitle = movie.Subtitle;
+            check.Rating = movie.Rating;
+            check.AgeRestriction = movie.AgeRestriction;
             _context.SaveChanges();
             return true;
         }

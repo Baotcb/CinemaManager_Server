@@ -16,14 +16,14 @@ namespace Cinema_Manager_Serve
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            
+            builder.Services.AddSignalR();
 
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy(name: MyAllowSpecificOrigins,
                     builder =>
                     {
-                        builder.WithOrigins("http://localhost:4200", "https://localhost:7070")
+                        builder.WithOrigins("http://localhost:4200")
                                .AllowAnyHeader()
                                .AllowAnyMethod()
                                .AllowCredentials()
@@ -44,7 +44,7 @@ namespace Cinema_Manager_Serve
 
             app.UseAuthorization();
             app.UseCors(MyAllowSpecificOrigins);
-
+            app.MapHub<AdminHub>("/adminHub").RequireCors(MyAllowSpecificOrigins);
             app.MapControllers();
 
             app.Run();

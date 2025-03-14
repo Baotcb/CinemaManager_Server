@@ -17,7 +17,7 @@ namespace Cinema_Manager_Serve.Controllers
         [HttpGet("GetAllMovies")]
         public IActionResult GetAllMovies()
         {
-            var movies = _movieService.GetAllMovie();
+            var movies = _movieService.GetAllMovies();
             return Ok(movies);
         }
         [HttpGet("GetShowingMovies")]

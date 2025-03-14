@@ -75,5 +75,10 @@ namespace Repo.Service
             }
         }
 
+        public List<User> GetAllUser()
+        {
+
+            return _context.Users.ToList();
+        }
     }
 }

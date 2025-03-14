@@ -171,6 +171,31 @@ VALUES
   -- Upcoming Movies
   ('Jurassic World: New Era', 'Twenty years after the fall of Jurassic World, dinosaurs have integrated into ecosystems worldwide, creating a new era of human-dinosaur coexistence.', 152, '2025-03-20', '2025-05-20', 'Action, Adventure, Sci-Fi', 'Colin Trevorrow', 'Chris Pratt, Bryce Dallas Howard, Sam Neill', '/posters/jurassic_new_era.jpg', '/trailers/jurassic_new_era.mp4', 'English', 'Vietnamese', 0.0, 'C13');
 go
+-- Add more movies to the database
+INSERT INTO Movies (title, description, duration, release_date, end_date, genre, director, cast, poster_url, trailer_url, language, subtitle, rating, age_restriction)
+VALUES
+-- Action/Superhero Movies
+('The Batman: Shadows of Gotham', 'Batman faces his greatest challenge as a mysterious new villain begins targeting Gotham''s elite with complex psychological games.', 162, '2025-03-25', '2025-05-25', 'Action, Crime, Drama', 'Matt Reeves', 'Robert Pattinson, Zoë Kravitz, Paul Dano, Colin Farrell', '/posters/batman_shadows.jpg', '/trailers/batman_shadows.mp4', 'English', 'Vietnamese', 8.7, 'C16'),
+
+('Captain Marvel: Binary', 'Carol Danvers discovers a new dimension to her powers while protecting Earth from an ancient cosmic threat with ties to her past.', 145, '2025-04-10', '2025-06-10', 'Action, Adventure, Sci-Fi', 'Nia DaCosta', 'Brie Larson, Teyonah Parris, Lashana Lynch', '/posters/captain_marvel_binary.jpg', '/trailers/captain_marvel_binary.mp4', 'English', 'Vietnamese', 8.2, 'C13'),
+
+('Spider-Man: Tokyo Web', 'Peter Parker travels to Tokyo for an international science conference but gets entangled in a conspiracy involving technological espionage and new villains.', 138, '2025-05-15', '2025-07-15', 'Action, Adventure, Comedy', 'Jon Watts', 'Tom Holland, Zendaya, Hiroyuki Sanada', '/posters/spiderman_tokyo.jpg', '/trailers/spiderman_tokyo.mp4', 'English, Japanese', 'Vietnamese, English', 0.0, 'C13'),
+
+-- Drama/Award Contenders
+('The Last Letter', 'A renowned novelist with early-onset dementia races against time to write his final masterpiece while reconnecting with his estranged daughter.', 135, '2025-04-05', '2025-06-05', 'Drama, Family', 'Park Chan-wook', 'Anthony Hopkins, Saoirse Ronan, Choi Min-sik', '/posters/last_letter.jpg', '/trailers/last_letter.mp4', 'English, Korean', 'Vietnamese, English', 9.3, 'C16'),
+
+('Saigon 1975', 'A gripping historical drama about the final days of the Vietnam War, told through the eyes of a Vietnamese family and an American journalist.', 165, '2025-04-30', '2025-06-30', 'Drama, War, History', 'Tran Anh Hung', 'Tang Thanh Ha, Brad Pitt, Ngo Thanh Van', '/posters/saigon_1975.jpg', '/trailers/saigon_1975.mp4', 'Vietnamese, English', 'Vietnamese, English', 9.5, 'C18'),
+
+-- Horror/Thriller
+('The Haunting of Bach Ma', 'A group of international tourists in Vietnam ventures into the abandoned Bach Ma hill station, awakening ancient spirits with connections to colonial-era atrocities.', 128, '2025-03-13', '2025-05-13', 'Horror, Thriller', 'James Wan', 'Ninh Duong Lan Ngoc, Florence Pugh, Evan Peters', '/posters/haunting_bach_ma.jpg', '/trailers/haunting_bach_ma.mp4', 'English, Vietnamese', 'Vietnamese, English', 8.1, 'C18'),
+
+
+('Blossom Season', 'A tender coming-of-age story set in rural Vietnam about a young girl pursuing her dream of becoming a dancer despite family expectations and traditions.', 115, '2025-03-28', '2025-05-28', 'Drama, Family', 'Phan Dang Di', 'Hai Khuong, Thien An, Le Cong Hoang', '/posters/blossom_season.jpg', '/trailers/blossom_season.mp4', 'Vietnamese', 'English', 8.9, 'P'),
+
+('Eternal Memories', 'An elderly man with dementia relives his youth in 1960s Paris through fragments of memory, blurring the line between past and present.', 132, '2025-04-12', '2025-06-12', 'Drama, Romance', 'Céline Sciamma', 'Jean-Louis Trintignant, Isabelle Huppert, Noémie Merlant', '/posters/eternal_memories.jpg', '/trailers/eternal_memories.mp4', 'French', 'Vietnamese, English', 9.1, 'C13'),
+
+-- Comedy/Family
+('Operation: Dog Squad', 'A family-friendly comedy about a specialized police unit of trained dogs and their handlers solving crimes in the city.', 110, '2025-03-15', '2025-05-15', 'Comedy, Family, Adventure', 'Taika Waititi', 'Sam Rockwell, Awkwafina, Will Arnett', '/posters/dog_squad.jpg', '/trailers/dog_squad.mp4', 'English', 'Vietnamese', 7.8, 'P');
 -- INSERT data for Cinemas table
 INSERT INTO Cinemas (name, address, city, phone_number, email, description, image_url)
 VALUES
@@ -236,6 +261,29 @@ CROSS JOIN
     (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
      FROM master.dbo.spt_values WHERE type = 'P' AND number <= 15) AS cols;
 go
+-- Insert standard seats for Room 3 (3D, capacity 100)
+-- 10 rows (A-J) with 10 seats per row
+INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
+SELECT 3, char(64 + row_num), col_num, 'Standard', 1.00
+FROM 
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS row_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS rows
+CROSS JOIN
+    (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS col_num 
+     FROM master.dbo.spt_values WHERE type = 'P' AND number <= 10) AS cols;
+GO
+
+-- Update center seats (rows D, E, F) to VIP with higher price modifier
+UPDATE Seats 
+SET seat_type = 'VIP', price_modifier = 1.30
+WHERE room_id = 3 AND seat_row IN ('D', 'E', 'F') AND seat_number BETWEEN 3 AND 8;
+GO
+
+-- Add some couple seats in the back row
+UPDATE Seats 
+SET seat_type = 'Couple', price_modifier = 1.50
+WHERE room_id = 3 AND seat_row = 'J' AND seat_number BETWEEN 3 AND 8 AND seat_number % 2 = 1;
+GO
 -- Insert seats for Room 4 (2D)
 INSERT INTO Seats (room_id, seat_row, seat_number, seat_type, price_modifier)
 SELECT 4, char(64 + row_num), col_num, 'Standard', 1.00
@@ -319,6 +367,101 @@ VALUES
   -- Upcoming: Jurassic World: New Era (ID 6)
   (6, 1, '2025-03-20 15:30:00', '2025-03-20 18:02:00', 200000, 160000, 120000, 150000);
 go
+-- Add showtimes from March 11-31, 2025
+INSERT INTO Showtimes (movie_id, room_id, start_time, end_time, base_price, student_price, child_price, senior_price)
+VALUES
+-- Dune: Part Three (runs until Mar 31)
+-- Week 2: Mar 11-17
+(1, 1, '2025-03-11 10:00:00', '2025-03-11 12:45:00', 150000, 120000, 90000, 112500), -- Morning IMAX
+(1, 1, '2025-03-11 19:00:00', '2025-03-11 21:45:00', 200000, 160000, 120000, 150000), -- Evening IMAX
+(1, 3, '2025-03-12 16:30:00', '2025-03-12 19:15:00', 150000, 120000, 90000, 112500), -- Evening 3D
+(1, 1, '2025-03-13 19:00:00', '2025-03-13 21:45:00', 200000, 160000, 120000, 150000), -- Evening IMAX
+(1, 3, '2025-03-14 16:30:00', '2025-03-14 19:15:00', 150000, 120000, 90000, 112500), -- Evening 3D
+(1, 1, '2025-03-15 10:00:00', '2025-03-15 12:45:00', 150000, 120000, 90000, 112500), -- Weekend Morning IMAX
+(1, 1, '2025-03-15 19:00:00', '2025-03-15 21:45:00', 220000, 176000, 132000, 165000), -- Weekend Evening IMAX
+(1, 3, '2025-03-16 16:30:00', '2025-03-16 19:15:00', 170000, 136000, 102000, 127500), -- Weekend Evening 3D
+
+-- Week 3: Mar 18-24
+(1, 1, '2025-03-18 10:00:00', '2025-03-18 12:45:00', 150000, 120000, 90000, 112500),
+(1, 1, '2025-03-18 19:00:00', '2025-03-18 21:45:00', 200000, 160000, 120000, 150000),
+(1, 3, '2025-03-20 16:30:00', '2025-03-20 19:15:00', 150000, 120000, 90000, 112500),
+(1, 3, '2025-03-22 16:30:00', '2025-03-22 19:15:00', 170000, 136000, 102000, 127500),
+(1, 1, '2025-03-22 19:00:00', '2025-03-22 21:45:00', 220000, 176000, 132000, 165000),
+(1, 1, '2025-03-23 10:00:00', '2025-03-23 12:45:00', 170000, 136000, 102000, 127500),
+
+-- Final week: Mar 25-31
+(1, 1, '2025-03-25 10:00:00', '2025-03-25 12:45:00', 150000, 120000, 90000, 112500),
+(1, 1, '2025-03-25 19:00:00', '2025-03-25 21:45:00', 200000, 160000, 120000, 150000),
+(1, 3, '2025-03-27 16:30:00', '2025-03-27 19:15:00', 150000, 120000, 90000, 112500),
+(1, 1, '2025-03-29 10:00:00', '2025-03-29 12:45:00', 170000, 136000, 102000, 127500),
+(1, 1, '2025-03-29 19:00:00', '2025-03-29 21:45:00', 220000, 176000, 132000, 165000),
+(1, 3, '2025-03-30 16:30:00', '2025-03-30 19:15:00', 170000, 136000, 102000, 127500),
+(1, 1, '2025-03-31 19:00:00', '2025-03-31 21:45:00', 200000, 160000, 120000, 150000),
+
+-- Avengers: Secret Wars (runs until Apr 10)
+-- Mid-March to end of March
+(2, 2, '2025-03-15 15:00:00', '2025-03-15 18:02:00', 220000, 176000, 132000, 165000), -- Weekend 4DX
+(2, 2, '2025-03-15 20:00:00', '2025-03-15 23:02:00', 240000, 192000, 144000, 180000), -- Weekend Evening 4DX
+(2, 4, '2025-03-16 10:30:00', '2025-03-16 13:32:00', 120000, 96000, 72000, 90000),    -- Weekend Morning 2D
+(2, 7, '2025-03-18 15:45:00', '2025-03-18 18:47:00', 120000, 96000, 72000, 90000),    -- BHD SCREENX
+(2, 2, '2025-03-20 15:00:00', '2025-03-20 18:02:00', 200000, 160000, 120000, 150000), -- Afternoon 4DX
+(2, 2, '2025-03-22 20:00:00', '2025-03-22 23:02:00', 240000, 192000, 144000, 180000), -- Weekend Evening 4DX
+(2, 4, '2025-03-23 10:30:00', '2025-03-23 13:32:00', 120000, 96000, 72000, 90000),    -- Weekend Morning 2D
+(2, 7, '2025-03-25 15:45:00', '2025-03-25 18:47:00', 120000, 96000, 72000, 90000),    -- BHD SCREENX
+(2, 2, '2025-03-27 15:00:00', '2025-03-27 18:02:00', 200000, 160000, 120000, 150000), -- Afternoon 4DX
+(2, 2, '2025-03-29 20:00:00', '2025-03-29 23:02:00', 240000, 192000, 144000, 180000), -- Weekend Evening 4DX
+(2, 4, '2025-03-30 10:30:00', '2025-03-30 13:32:00', 120000, 96000, 72000, 90000),    -- Weekend Morning 2D
+
+-- The Last Samurai: Legacy (runs until Mar 20)
+(3, 5, '2025-03-12 11:30:00', '2025-03-12 14:05:00', 100000, 80000, 60000, 75000),
+(3, 5, '2025-03-12 18:00:00', '2025-03-12 20:35:00', 120000, 96000, 72000, 90000),
+(3, 8, '2025-03-14 14:30:00', '2025-03-14 17:05:00', 120000, 96000, 72000, 90000),    -- BHD 3D
+(3, 5, '2025-03-15 11:30:00', '2025-03-15 14:05:00', 120000, 96000, 72000, 90000),    -- Weekend
+(3, 5, '2025-03-15 18:00:00', '2025-03-15 20:35:00', 140000, 112000, 84000, 105000),  -- Weekend Evening
+(3, 8, '2025-03-16 14:30:00', '2025-03-16 17:05:00', 140000, 112000, 84000, 105000),  -- Weekend BHD 3D
+(3, 5, '2025-03-18 18:00:00', '2025-03-18 20:35:00', 120000, 96000, 72000, 90000),
+(3, 5, '2025-03-19 11:30:00', '2025-03-19 14:05:00', 100000, 80000, 60000, 75000),
+(3, 5, '2025-03-20 18:00:00', '2025-03-20 20:35:00', 120000, 96000, 72000, 90000),    -- Last day
+
+-- Seoul Stories (runs until Mar 15)
+(4, 6, '2025-03-11 12:00:00', '2025-03-11 14:08:00', 120000, 96000, 72000, 90000),
+(4, 6, '2025-03-12 18:30:00', '2025-03-12 20:38:00', 120000, 96000, 72000, 90000),
+(4, 6, '2025-03-14 12:00:00', '2025-03-14 14:08:00', 120000, 96000, 72000, 90000),
+(4, 6, '2025-03-15 12:00:00', '2025-03-15 14:08:00', 140000, 112000, 84000, 105000), -- Last day (weekend)
+(4, 6, '2025-03-15 18:30:00', '2025-03-15 20:38:00', 140000, 112000, 84000, 105000), -- Last day (weekend evening)
+
+-- Fast & Furious: Final Ride (runs until Mar 25)
+(5, 7, '2025-03-11 15:45:00', '2025-03-11 18:10:00', 120000, 96000, 72000, 90000),
+(5, 7, '2025-03-13 15:45:00', '2025-03-13 18:10:00', 120000, 96000, 72000, 90000),
+(5, 7, '2025-03-15 15:45:00', '2025-03-15 18:10:00', 140000, 112000, 84000, 105000), -- Weekend
+(5, 4, '2025-03-16 20:00:00', '2025-03-16 22:25:00', 140000, 112000, 84000, 105000), -- Weekend evening
+(5, 7, '2025-03-18 15:45:00', '2025-03-18 18:10:00', 120000, 96000, 72000, 90000),
+(5, 7, '2025-03-20 15:45:00', '2025-03-20 18:10:00', 120000, 96000, 72000, 90000),
+(5, 7, '2025-03-22 15:45:00', '2025-03-22 18:10:00', 140000, 112000, 84000, 105000), -- Weekend
+(5, 4, '2025-03-23 20:00:00', '2025-03-23 22:25:00', 140000, 112000, 84000, 105000), -- Weekend evening
+(5, 7, '2025-03-25 15:45:00', '2025-03-25 18:10:00', 120000, 96000, 72000, 90000),    -- Last day
+
+-- Jurassic World: New Era (starts Mar 20)
+(6, 1, '2025-03-20 10:00:00', '2025-03-20 12:32:00', 150000, 120000, 90000, 112500), -- Opening day IMAX morning
+(6, 1, '2025-03-20 19:00:00', '2025-03-20 21:32:00', 200000, 160000, 120000, 150000), -- Opening day IMAX evening
+(6, 2, '2025-03-21 15:00:00', '2025-03-21 17:32:00', 200000, 160000, 120000, 150000), -- 4DX
+(6, 2, '2025-03-21 20:00:00', '2025-03-21 22:32:00', 220000, 176000, 132000, 165000), -- 4DX evening
+(6, 8, '2025-03-21 13:00:00', '2025-03-21 15:32:00', 120000, 96000, 72000, 90000),    -- BHD 3D
+(6, 1, '2025-03-22 10:00:00', '2025-03-22 12:32:00', 170000, 136000, 102000, 127500), -- Weekend IMAX morning
+(6, 1, '2025-03-22 15:00:00', '2025-03-22 17:32:00', 200000, 160000, 120000, 150000), -- Weekend IMAX afternoon
+(6, 1, '2025-03-22 19:00:00', '2025-03-22 21:32:00', 220000, 176000, 132000, 165000), -- Weekend IMAX evening
+(6, 2, '2025-03-23 15:00:00', '2025-03-23 17:32:00', 220000, 176000, 132000, 165000), -- Weekend 4DX
+(6, 8, '2025-03-23 13:00:00', '2025-03-23 15:32:00', 140000, 112000, 84000, 105000),  -- Weekend BHD 3D
+(6, 1, '2025-03-25 10:00:00', '2025-03-25 12:32:00', 150000, 120000, 90000, 112500),  -- IMAX morning
+(6, 1, '2025-03-25 19:00:00', '2025-03-25 21:32:00', 200000, 160000, 120000, 150000), -- IMAX evening
+(6, 2, '2025-03-27 15:00:00', '2025-03-27 17:32:00', 200000, 160000, 120000, 150000), -- 4DX
+(6, 2, '2025-03-28 20:00:00', '2025-03-28 22:32:00', 220000, 176000, 132000, 165000), -- 4DX evening
+(6, 1, '2025-03-29 10:00:00', '2025-03-29 12:32:00', 170000, 136000, 102000, 127500), -- Weekend IMAX morning
+(6, 1, '2025-03-29 15:00:00', '2025-03-29 17:32:00', 200000, 160000, 120000, 150000), -- Weekend IMAX afternoon
+(6, 1, '2025-03-29 19:00:00', '2025-03-29 21:32:00', 220000, 176000, 132000, 165000), -- Weekend IMAX evening
+(6, 2, '2025-03-30 15:00:00', '2025-03-30 17:32:00', 220000, 176000, 132000, 165000), -- Weekend 4DX
+(6, 8, '2025-03-30 13:00:00', '2025-03-30 15:32:00', 140000, 112000, 84000, 105000),  -- Weekend BHD 3D
+(6, 1, '2025-03-31 19:00:00', '2025-03-31 21:32:00', 200000, 160000, 120000, 150000); -- IMAX evening
 -- INSERT data for Bookings table
 INSERT INTO Bookings (user_id, booking_date, total_amount, discount_amount, discount_code, additional_purchases, payment_method, transaction_id, payment_status, booking_status, payment_date)
 VALUES
@@ -421,8 +564,8 @@ EXEC GetAvailableSeats
     @movieId = 1, 
     @cinemaName = 'CGV Landmark 81',
     @showDate = '2025-03-10',
-    @startTimeBegin = '04:30:00',
-    @startTimeEnd = '07:15:00';
+    @startTimeBegin = '19:00:00',
+    @startTimeEnd = '21:45:00';
 GO
 
 -- select * from Booking_Details;
@@ -690,4 +833,5 @@ BEGIN
     END CATCH
 END;
 GO
+
 
