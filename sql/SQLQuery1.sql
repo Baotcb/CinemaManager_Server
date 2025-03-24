@@ -755,7 +755,6 @@ GO
 
 
 
-
 CREATE OR ALTER PROCEDURE CancelBooking
     @booking_id INT,     -- ID của đặt vé cần hủy
     @user_id INT     -- ID của người dùng để xác minh quyền hủy vé

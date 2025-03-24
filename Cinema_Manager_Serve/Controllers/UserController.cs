@@ -94,23 +94,36 @@ namespace Cinema_Manager_Serve.Controllers
         [HttpPut("ChangePassword")]
         public IActionResult ChangePass([FromBody] UserChangePass user)
         {
-            var existingUser = _userService.GetUserById(user.userId);
-            if (existingUser == null)
+            try
             {
-                return NotFound(new { message = "User not found" });
+                var existingUser = _userService.GetUserById(user.userId);
+                if (existingUser == null)
+                {
+                    return NotFound(new { message = "User not found" });
+                }
+
+              
+                if (!_userService.CheckPassword(user.userId, user.oldPassword))
+                {
+                    return BadRequest(new { message = "Old password is incorrect" });
+                }
+
+          
+                var success = _userService.ChangePass(user.userId, user.oldPassword, user.newPassword);
+                if (!success)
+                {
+                    return BadRequest(new { message = "Failed to change password" });
+                }
+
+                return Ok(new { message = "Password changed successfully" });
             }
-            if (existingUser.Password != user.oldPassword)
+            catch (Exception ex)
             {
-                return BadRequest(new { message = "Old password is incorrect" });
+                _logger.LogError(ex, "Error changing password for user {UserId}", user.userId);
+                return StatusCode(500, new { message = "An internal error occurred" });
             }
-            existingUser.Password = user.newPassword;
-            var success = _userService.UpdateUser(existingUser);
-            if (!success)
-            {
-                return BadRequest(new { message = "Failed to change password" });
-            }
-            return Ok();
         }
+
 
 
 
